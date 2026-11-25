@@ -39,6 +39,23 @@ export function documentLabel(doc: Report["documents"][number]): string {
   return `${DOC_LABELS[doc.doc_type]}, ${layout}`;
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** `<first file's stem>-civilian-keywords-<local YYYY-MM-DD>.<ext>`, so reports for different people get different names. */
+export function downloadName(firstFileName: string, ext: "md" | "json", date: Date): string {
+  const trim = (s: string) => s.replace(/^[ -]+|[ -]+$/g, "");
+  const cleaned = trim(
+    firstFileName
+      .normalize("NFC")
+      .replace(/\.[^.]*$/, "")
+      .replace(/[^\p{L}\p{M}\p{N} _-]/gu, "-")
+      .replace(/-+/g, "-"),
+  );
+  const stem = trim(Array.from(cleaned).slice(0, 60).join("")) || "documents";
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${stem}-civilian-keywords-${day}.${ext}`;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} bytes`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
