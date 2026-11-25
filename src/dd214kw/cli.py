@@ -86,7 +86,7 @@ def _cmd_lookup(a: argparse.Namespace) -> int:
 
 
 def _cmd_inspect(a: argparse.Namespace) -> int:
-    from .inspect_layout import inspect, report
+    from .inspect_layout import inspect, report, write_png
 
     try:
         result = inspect(a.file, ocr=a.ocr)
@@ -98,8 +98,11 @@ def _cmd_inspect(a: argparse.Namespace) -> int:
         a.output.write_text(text, encoding="utf-8")
     else:
         sys.stdout.write(text)
+    if a.png:
+        write_png(result, a.png)
+    written = " and ".join(str(p) for p in (a.output, a.png) if p)
     err.print(
-        (f"Wrote {a.output}. " if a.output else "")
+        (f"Wrote {written}. " if written else "")
         + "It holds boxes, shape codes and our label ids, and no text from the document. "
         "Look it over before you share it."
     )
@@ -148,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
     ins.add_argument("file", type=Path, metavar="FILE", help="The DD-214 (.pdf or image)")
     ins.add_argument("--ocr", action="store_true", help="OCR a scan with no text layer")
     ins.add_argument("-o", "--output", type=Path, help="Write the text here, not to stdout")
+    ins.add_argument("--png", type=Path, help="Also draw the geometry as a picture here")
     ins.set_defaults(func=_cmd_inspect)
 
     a = p.parse_args(argv)

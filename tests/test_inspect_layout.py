@@ -3,7 +3,8 @@
 The PDFs are the fictional forms `synthetic_dd214.py` draws, filled in with fake personal
 values. Privacy is checked two ways. Structurally, every output line after the fixed
 header matches a strict grammar whose only free fields are our own ids, counts, scores and
-coordinates. As a denylist, no token of a drawn value appears.
+coordinates. As a denylist, no token of a drawn value appears. The picture is checked for
+the calls that drew it and for the colours it holds.
 """
 
 import importlib.util
@@ -13,12 +14,14 @@ from pathlib import Path
 
 import pytest
 import synthetic_dd214 as form
+from PIL import Image, ImageDraw
 
 from dd214kw.cli import main
 from dd214kw.extractors.dd214_layout import EDITION_2000
-from dd214kw.inspect_layout import HEADER, LABEL_IDS, inspect, report
+from dd214kw.inspect_layout import HEADER, LABEL_IDS, PALETTE, inspect, report, write_png
 
 BLOCKS = {*EDITION_2000.written, *EDITION_2000.withheld} - {EDITION_2000.record}
+TAGS = {*LABEL_IDS, *(f"B{block}" for block in BLOCKS)}
 
 N = r"-?\d{1,4}\.\d"  # a coordinate to 0.1: no run of five digits, such as a date, fits
 BOX = " ".join([N] * 4)
@@ -96,16 +99,17 @@ def variant(request, tmp_path_factory) -> Variant:
 
 
 @pytest.fixture(scope="module")
-def inspected(variant, tmp_path_factory) -> list[str]:
-    """inspect-layout run on the variant the way the user runs it."""
-    txt = tmp_path_factory.mktemp("out") / "layout.txt"
-    argv = ["inspect-layout", str(variant.pdf), "-o", str(txt)]
+def inspected(variant, tmp_path_factory) -> tuple[list[str], Path]:
+    """inspect-layout run on the variant the way the user runs it: its text, its picture."""
+    out = tmp_path_factory.mktemp("out")
+    txt, png = out / "layout.txt", out / "layout.png"
+    argv = ["inspect-layout", str(variant.pdf), "-o", str(txt), "--png", str(png)]
     assert main([*argv, *(["--ocr"] if variant.ocr else [])]) == 0
-    return txt.read_text(encoding="utf-8").splitlines()
+    return txt.read_text(encoding="utf-8").splitlines(), png
 
 
 def test_every_line_is_the_fixed_header_or_geometry(inspected):
-    lines = inspected
+    lines, _ = inspected
     assert lines[: len(HEADER)] == list(HEADER)
     for line in lines[len(HEADER) :]:
         match = next((m for rule in GRAMMAR if (m := rule.fullmatch(line))), None)
@@ -120,13 +124,58 @@ def test_no_token_of_a_drawn_value_appears(inspected):
     text from your document". Tokens of digits alone are left to the grammar, which allows
     digits only in ids, counts, scores and coordinates: an x of 456.0 is no leak of the
     456 in an address."""
-    lines = inspected
+    lines, _ = inspected
     tokens = {t.upper() for line in lines[len(HEADER) :] for t in re.findall(r"\w+", line)}
     assert {t for t in tokens if not t.isdigit()} & VALUE_TOKENS == set()
 
 
+def test_picture_holds_only_the_shapes_colours(inspected):
+    """A scan pasted in would bring its greys: the picture would hold more colours."""
+    _, png = inspected
+    with Image.open(png) as img:
+        colours = img.convert("RGB").getcolors(maxcolors=len(PALETTE))
+    assert colours is not None
+    assert {colour for _, colour in colours} <= set(PALETTE.values())
+
+
+def test_picture_is_drawn_from_boxes_lines_and_our_ids_alone(variant, monkeypatch, tmp_path):
+    result = inspect(variant.pdf, ocr=variant.ocr)
+    calls: list[tuple[str, tuple]] = []
+    real_draw = ImageDraw.Draw
+
+    class Recorder:
+        def __init__(self, draw):
+            self._draw = draw
+
+        def __getattr__(self, name):
+            def call(*args, **kwargs):
+                calls.append((name, args))
+                return getattr(self._draw, name)(*args, **kwargs)
+
+            return call
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("an image was put on the canvas")
+
+    monkeypatch.setattr(ImageDraw, "Draw", lambda img, mode=None: Recorder(real_draw(img, mode)))
+    for owner, name in (
+        (Image.Image, "paste"),
+        (Image.Image, "alpha_composite"),
+        (Image, "alpha_composite"),
+        (Image, "composite"),
+        (Image, "blend"),
+    ):
+        monkeypatch.setattr(owner, name, forbidden)
+    write_png(result, tmp_path / "layout.png")
+
+    assert {name for name, _ in calls} <= {"rectangle", "line", "text"}
+    tags = {args[1] for name, args in calls if name == "text"}
+    assert tags
+    assert tags <= TAGS
+
+
 def test_inspection_finds_the_form_and_what_the_reader_did(variant, inspected):
-    lines = inspected
+    lines, _ = inspected
     text = "\n".join(lines)
     source, unit, rules = {
         "clean": ("text-layer", "pt", "drawn"),

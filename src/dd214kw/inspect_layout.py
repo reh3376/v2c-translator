@@ -9,6 +9,9 @@ prints the geometry alone:
 - the text lines the PDF's text layer or OCR holds, as boxes with word counts;
 - the page's ruled lines, from the PDF's drawing or found in the scanned image;
 - the boxes the layout reader drew, and what it did with each, with no values.
+
+`write_png()` draws the same geometry as rectangles and lines on a blank canvas. It is
+never given the page image.
 """
 
 from __future__ import annotations
@@ -57,6 +60,7 @@ HEADINGS = (("L12yr", "YEARS"), ("L12mo", "MONTHS"), ("L12dy", "DAYS"))
 LABEL_IDS = (*dict.fromkeys(key for key, _ in LABELS), *(key for key, _ in HEADINGS))
 HEADING_MATCH = 75  # the layout reader's own floor for a column heading
 COLUMN_IDS = dict(zip(COLUMNS, ("yr", "mo", "dy"), strict=True))
+PNG_SIDE = 1600  # pixels along the page's longer side
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +228,65 @@ def _crosses(box: Box, rule: Rule) -> bool:
     x0, top, x1, bottom = box
     x = (rule.x0 + rule.x1) / 2
     return x0 + 1 < x < x1 - 1 and min(rule.y0, rule.y1) < bottom and max(rule.y0, rule.y1) > top
+
+
+# --------------------------------------------------------------------------- picture
+
+# Each kind of shape has one colour, drawn flat: the picture holds these colours and no other.
+PALETTE = {
+    "canvas": (255, 255, 255),
+    "word": (190, 190, 190),
+    "rule": (230, 120, 0),
+    "reader": (0, 80, 220),
+    "label": (0, 130, 0),
+}
+
+
+def write_png(ins: Inspection, path: Path) -> None:
+    """Draw one page's geometry on a blank canvas: words as grey boxes, the rules, the
+    reader's boxes tagged with their block, and the labels tagged with their ids. The page
+    image is never drawn: this only knows boxes, lines and our ids."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    page = _focus(ins)
+    scale = PNG_SIDE / max(page.width, page.height)
+    size = (math.ceil(page.width * scale), math.ceil(page.height * scale))
+    img = Image.new("RGB", size, PALETTE["canvas"])
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default_imagefont()  # a bitmap font: no blended edge colours
+
+    def px(box: Box) -> Box:
+        x0, y0, x1, y1 = (v * scale for v in box)
+        return min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
+
+    labels = [lb for lb in ins.labels if lb.page == page.number]
+    labelled = {id(w) for lb in labels for w in lb.words}
+    for w in (w for line in page.lines for w in line if id(w) not in labelled):
+        draw.rectangle(px(_bounds([w])), fill=PALETTE["word"])
+    for r in page.rules:
+        draw.line(px((r.x0, r.y0, r.x1, r.y1)), fill=PALETTE["rule"], width=2)
+    layout = ins.form.layout
+    if layout is not None and layout.page == page.number:
+        for c in layout.cells:
+            if c.box:
+                draw.rectangle(px(c.box), outline=PALETTE["reader"])
+        for region in layout.regions:
+            if region.box:
+                x0, _, _, y1 = box = px(region.box)
+                draw.rectangle(box, outline=PALETTE["reader"], width=2)
+                draw.text((x0 + 3, y1 - 13), f"B{region.block}", fill=PALETTE["reader"], font=font)
+    for lb in labels:
+        x0, y0, _, _ = box = px(lb.box)
+        draw.rectangle(box, outline=PALETTE["label"])
+        draw.text((x0, max(0, y0 - 11)), lb.id, fill=PALETTE["label"], font=font)
+    img.save(path, "PNG")
+
+
+def _focus(ins: Inspection) -> Page:
+    """The page the reader read, or else the page with the most labels found."""
+    if ins.form.layout is not None:
+        return ins.pages[ins.form.layout.page]
+    return max(ins.pages, key=lambda p: sum(lb.page == p.number for lb in ins.labels))
 
 
 # --------------------------------------------------------------------------- labels
