@@ -1,6 +1,6 @@
 # Design: multi-document input
 
-Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · next: arena on Shape B
+Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · steps 1-2: in PR #1
 
 ## Problem
 
