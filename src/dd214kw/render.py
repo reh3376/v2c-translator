@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .evidence import DOC_LABELS
+from .evidence import DOC_LABELS, OccupationHeld
 from .models import CATEGORIES, KeywordReport
 
 ATTRIBUTION = (
@@ -20,6 +20,14 @@ ATTRIBUTION = (
 def _documents(r: KeywordReport) -> str:
     """How the report names the documents read, e.g. in a table header."""
     return " / ".join(dict.fromkeys(DOC_LABELS[d.doc_type] for d in r.documents)) or "Document"
+
+
+def _entry(o: OccupationHeld) -> str:
+    """A specialty as the report lists it: title, then time in it ("6 YRS 4 MOS")."""
+    if o.months is None:
+        return o.title
+    y, m = divmod(o.months, 12)
+    return f"{o.title} {y} {'YR' if y == 1 else 'YRS'} {m} MOS" if y else f"{o.title} {m} MOS"
 
 
 def _summary(r: KeywordReport) -> list[str]:
@@ -58,7 +66,7 @@ def to_markdown(r: KeywordReport) -> str:
     for m in r.matches:
         occ = "; ".join(f"{o.title} ({o.onet})" for o in m.occupations[:5]) or "—"
         code = f"{m.code} {m.title}" if m.code else "not matched"
-        lines.append(f"| {m.specialty.title} | {code} | {occ} |")
+        lines.append(f"| {_entry(m.specialty)} | {code} | {occ} |")
     for cat, label in CATEGORIES.items():
         kws = r.keywords.get(cat) or []
         if kws:
@@ -82,7 +90,7 @@ def print_rich(r: KeywordReport, console: Console | None = None, explain: bool =
     for m in r.matches:
         code = f"[bold]{m.code}[/] {m.title}\n[dim]{m.method}[/]" if m.code else "[red]no match[/]"
         occ = "\n".join(f"{o.title} [dim]{o.onet} w={o.weight}[/]" for o in m.occupations[:6])
-        t.add_row(m.specialty.title, code, occ or "—")
+        t.add_row(_entry(m.specialty), code, occ or "—")
     c.print(t)
 
     for cat, label in CATEGORIES.items():

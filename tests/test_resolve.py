@@ -226,3 +226,66 @@ def test_accomplishments_and_skill_claims_by_normalized_text_union_sources():
         ("Python", (resume, epb)),
         ("Security+", (resume,)),
     ]
+
+
+# --------------------------------------------------------------------------- real documents
+
+
+def test_two_dd214s_merge_through_the_extractor(tmp_path):
+    """Real form text, not hand-made facts: the policy rows must fire on what extractors emit."""
+    from pathlib import Path
+
+    from dd214kw.extractors import read
+
+    first = (Path(__file__).parent / "fixtures" / "army_2000.txt").read_text()
+    earlier = (
+        first.replace("2022 06 01", "2014 05 30")  # a separate, earlier period
+        .replace("6 YRS 4 MOS", "2 YRS 0 MOS")
+        .replace("ARMY ACHIEVEMENT MEDAL (3RD AWARD)", "ARMY ACHIEVEMENT MEDAL (2ND AWARD)")
+    )
+    facts = []
+    for name, text in (("a.txt", first), ("b.txt", earlier)):
+        path = tmp_path / name
+        path.write_text(text)
+        facts += read(path)[1]
+    profile = resolve(facts)
+
+    infantry = [o for o in profile.occupations if o.value.title.startswith("11B")]
+    assert len(infantry) == 1
+    assert infantry[0].value.months == 76  # months = max
+    assert len({s.doc_id for s in infantry[0].sources}) == 2
+    medal = next(a for a in profile.awards if a.value.name == "ARMY ACHIEVEMENT MEDAL")
+    assert medal.value.count == 3  # count = max
+    assert profile.service_time["net_active"].years == 16  # separate periods sum
+
+
+# --------------------------------------------------------------------------- exhaustiveness
+
+
+def test_every_fact_kind_reaches_the_profile():
+    """Adding a fact kind to the union fails here until resolve() places it in the Profile."""
+    from dataclasses import fields
+    from typing import get_args
+
+    from dd214kw.evidence import Fact
+
+    one_of_each = [
+        ctx("Army"),
+        OccupationHeld("11B", "INFANTRYMAN", 12, None, None, src()),
+        CivilianEquivalent("33-9032.00", "Security Guards", src("vmet")),
+        TrainingCompleted("BASIC LEADER COURSE", 4.0, None, None, None, src()),
+        Award("ARMY ACHIEVEMENT MEDAL", 1, src()),
+        ServiceTime("net_active", Duration(1, 0, 0), END, src()),
+        Accomplishment("Led a team", (), src("eval")),
+        SkillClaim("Python", "technology", src("resume")),
+    ]
+    assert {type(f) for f in one_of_each} == set(get_args(Fact))
+
+    profile = resolve(one_of_each)
+    placed: set[type] = {type(profile.context)}
+    for f in fields(profile):
+        value = getattr(profile, f.name)
+        if isinstance(value, tuple):
+            placed |= {type(r.value) for r in value if hasattr(r, "value")}
+    placed |= {ServiceTime} if profile.service_time else set()
+    assert placed >= set(get_args(Fact))

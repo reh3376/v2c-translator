@@ -17,7 +17,6 @@ from .models import (
     OccupationLink,
     SpecialtyMatch,
 )
-from .parse import DURATION_STRICT_RE
 from .resolve import Profile
 from .rules import rule_keywords
 
@@ -42,11 +41,10 @@ TITLE_MATCH_CUTOFF = 88
 
 def _candidate_codes(raw: str, code: str | None = None) -> list[str]:
     u = raw.upper()
-    cleaned = DURATION_STRICT_RE.sub(" ", u)
     toks: list[str] = [code.strip().upper()] if code else []
     toks += re.findall(r"\(([A-Z]{2,4})\)", u)  # "ELECTRONICS TECHNICIAN (ET)"
     toks += re.findall(r"^\s*([A-Z]{2,4})\s*[-\u2013/:]", u)  # "ET - ELECTRONICS TECHNICIAN"
-    toks += [t for t in re.findall(r"\b[A-Z0-9]{3,8}\b", cleaned) if re.search(r"\d", t)]
+    toks += [t for t in re.findall(r"\b[A-Z0-9]{3,8}\b", u) if re.search(r"\d", t)]
     return list(dict.fromkeys(toks))
 
 
@@ -62,7 +60,7 @@ def _variants(tok: str) -> list[tuple[str, str]]:
 
 
 def _clean_title(raw: str) -> str:
-    u = DURATION_STRICT_RE.sub(" ", raw.upper())
+    u = raw.upper()
     u = re.sub(r"\b[A-Z0-9]*\d[A-Z0-9]*\b|\([A-Z]{2,4}\)", " ", u)
     u = re.sub(
         r"\b(FIRST|SECOND|THIRD) CLASS\b|\bPETTY OFFICER\b|\bPRIMARY\b|\bMOS\b|\bAFSC\b|"

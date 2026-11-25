@@ -25,6 +25,7 @@ from ..evidence import (
 )
 from ..models import Course, Duration, Specialty
 from ..parse import (
+    DURATION_STRICT_RE,
     detect_branch,
     detect_version,
     normalize_pay_grade,
@@ -77,6 +78,23 @@ def _award_count(s: str) -> int:
     return 1
 
 
+# The award-count notation the form appends to a name: "(3)", "(2ND AWARD)", "W/ 1 OAK LEAF
+# CLUSTER", "W/ 2 OLC". The count lives in Award.count, so the name is the award's identity.
+AWARD_COUNT_SUFFIX_RE = re.compile(
+    r"\s*\(\s*\d+(?:ST|ND|RD|TH)?(?:\s*(?:AWARD|AWD))?\s*\)\s*$"
+    r"|\s*(?:W/|WITH)\s*\d+\s*(?:OAK\s*LEAF\s*CLUSTERS?|OLCS?)\s*$"
+)
+
+
+def _award_name(s: str) -> str:
+    return AWARD_COUNT_SUFFIX_RE.sub("", s) or s
+
+
+def _occupation_title(raw: str) -> str:
+    """The entry without its time in specialty, which OccupationHeld.months carries."""
+    return " ".join(DURATION_STRICT_RE.sub(" ", raw).split()).strip(" ,;-") or raw
+
+
 def _facts(
     context: ServiceContext,
     specialties: list[Specialty],
@@ -89,7 +107,8 @@ def _facts(
     """DD-214 fields -> facts. `src` gives the Source for each field and service-time kind."""
     facts: list[Fact] = [context]
     facts += [
-        OccupationHeld(None, s.raw, s.months, None, None, src["specialty"]) for s in specialties
+        OccupationHeld(None, _occupation_title(s.raw), s.months, None, None, src["specialty"])
+        for s in specialties
     ]
     facts += [
         TrainingCompleted(
@@ -97,7 +116,7 @@ def _facts(
         )
         for c in courses
     ]
-    facts += [Award(d, _award_count(d), src["decorations"]) for d in decorations]
+    facts += [Award(_award_name(d), _award_count(d), src["decorations"]) for d in decorations]
     facts += [
         ServiceTime(kind, d, period_end, src[kind])
         for kind, d in service_time.items()

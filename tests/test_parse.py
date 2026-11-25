@@ -45,7 +45,8 @@ def test_navy_2022_layout():
     assert [s.value.months for s in rec.occupations] == [102, 24]
     assert rec.service_time["sea"].years == 5
     assert len(rec.training) == 5
-    assert "SEA SERVICE DEPLOYMENT RIBBON (3)" in [a.value.name for a in rec.awards]
+    awards = [(a.value.name, a.value.count) for a in rec.awards]
+    assert ("SEA SERVICE DEPLOYMENT RIBBON", 3) in awards
 
 
 def test_sensitive_blocks_never_captured():
