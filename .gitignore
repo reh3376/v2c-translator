@@ -5,3 +5,18 @@ __pycache__/
 *.sqlite
 .pytest_cache/
 .ruff_cache/
+
+# Service records and scans of them, in any letter case. Never commit a real one.
+*.[Pp][Dd][Ff]
+*.[Pp][Nn][Gg]
+*.[Jj][Pp][Gg]
+*.[Jj][Pp][Ee][Gg]
+*.[Tt][Ii][Ff]
+*.[Tt][Ii][Ff][Ff]
+*.[Hh][Ee][Ii][Cc]
+[Dd][Dd]21[45]*
+[Vv][Mm][Ee][Tt]*
+# The package and its modules share names with the forms. Fixtures are synthetic.
+!/src/dd214kw/
+!*.py
+!/tests/fixtures/**
