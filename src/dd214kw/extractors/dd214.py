@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from datetime import date
+from typing import Any
 
 from ..evidence import (
     Award,
@@ -96,7 +97,6 @@ def _occupation_title(raw: str) -> str:
 
 
 def _facts(
-    context: ServiceContext,
     specialties: list[Specialty],
     courses: list[Course],
     decorations: list[str],
@@ -105,8 +105,7 @@ def _facts(
     src: Mapping[str, Source],
 ) -> list[Fact]:
     """DD-214 fields -> facts. `src` gives the Source for each field and service-time kind."""
-    facts: list[Fact] = [context]
-    facts += [
+    facts: list[Fact] = [
         OccupationHeld(None, _occupation_title(s.raw), s.months, None, None, src["specialty"])
         for s in specialties
     ]
@@ -155,15 +154,17 @@ class Dd214:
         record = segs.get("record", "")
         period_end = _separation_date(record)
         specialties = parse_specialties(segs.get("specialty"))
-        facts = _facts(
+        facts = [
             ServiceContext(branch, component, pay_grade, grade, period_end, src["branch"]),
-            specialties,
-            parse_courses(segs.get("education")),
-            parse_decorations(segs.get("decorations")),
-            {kind: _record_subfield(record, rx) for kind, rx in RECORD_LINES.items()},
-            period_end,
-            src,
-        )
+            *_facts(
+                specialties,
+                parse_courses(segs.get("education")),
+                parse_decorations(segs.get("decorations")),
+                {kind: _record_subfield(record, rx) for kind, rx in RECORD_LINES.items()},
+                period_end,
+                src,
+            ),
+        ]
 
         notes = []
         if layout == "unknown":
@@ -207,6 +208,25 @@ def _json_duration(v: object) -> Duration | None:
     return parse_duration(str(v)) if v else None
 
 
+def _json_facts(
+    data: Mapping[str, Any], source: Callable[[str], Source], period_end: date | None
+) -> list[Fact]:
+    """Facts from the JSON keys for specialties, education, decorations and service time.
+    `source(key)` is the Source for the field under `key`."""
+    spec_key = "specialty" if data.get("specialty") else "specialties"
+    src = {k: source(k) for k in JSON_KEYS}
+    src |= {"specialty": src[spec_key]}
+    src |= {kind: src[key] for key, kind in JSON_TIME_KEYS.items()}
+    return _facts(
+        parse_specialties(_as_text(data.get(spec_key))),
+        parse_courses(_as_text(data.get("education"))),
+        parse_decorations(_as_text(data.get("decorations"))),
+        {kind: _json_duration(data.get(key)) for key, kind in JSON_TIME_KEYS.items()},
+        period_end,
+        src,
+    )
+
+
 class Dd214Json:
     """Pre-extracted DD-214 fields as a JSON object.
 
@@ -225,11 +245,6 @@ class Dd214Json:
 
     def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]:
         data = json.loads(text)
-        spec_key = "specialty" if data.get("specialty") else "specialties"
-        src = {k: source(self.doc_type, k) for k in JSON_KEYS}
-        src |= {"specialty": src[spec_key]}
-        src |= {kind: src[key] for key, kind in JSON_TIME_KEYS.items()}
-
         raw_branch = data.get("branch")
         grade = data.get("grade")
         context = ServiceContext(
@@ -238,17 +253,9 @@ class Dd214Json:
             normalize_pay_grade(data.get("pay_grade")) or pay_grade_from_rank(grade),
             grade,
             None,
-            src["branch"],
+            source(self.doc_type, "branch"),
         )
-        specialties = parse_specialties(_as_text(data.get(spec_key)))
-        facts = _facts(
-            context,
-            specialties,
-            parse_courses(_as_text(data.get("education"))),
-            parse_decorations(_as_text(data.get("decorations"))),
-            {kind: _json_duration(data.get(key)) for key, kind in JSON_TIME_KEYS.items()},
-            None,
-            src,
-        )
-        notes = () if specialties else ("No specialty provided.",)
-        return Document(self.doc_type, source.doc_id, "json", notes), facts
+        facts = _json_facts(data, lambda key: source(self.doc_type, key), None)
+        has_specialty = any(isinstance(f, OccupationHeld) for f in facts)
+        notes = () if has_specialty else ("No specialty provided.",)
+        return Document(self.doc_type, source.doc_id, "json", notes), [context, *facts]
