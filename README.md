@@ -32,6 +32,7 @@ data source, it came from.
 - [How it works](#how-it-works)
 - [Data sources and licensing](#data-sources-and-licensing)
 - [Privacy and responsible use](#privacy-and-responsible-use)
+- [Sharing your DD-214 layout safely](#sharing-your-dd-214-layout-safely)
 - [Project structure](#project-structure)
 - [Development](#development)
 - [Customizing the translation](#customizing-the-translation)
@@ -131,7 +132,7 @@ uv run dd214kw translate scanned_dd214.pdf --ocr
 ## CLI reference
 
 ```
-dd214kw [--index PATH] {build-index, translate, lookup} ...
+dd214kw [--index PATH] {build-index, translate, lookup, inspect-layout} ...
 ```
 
 The global option `--index PATH` sets the location of the SQLite index. It defaults to
@@ -190,14 +191,25 @@ A 68W [E] Combat Medic Specialist status=A
   ...
 ```
 
+### `inspect-layout FILE`
+
+Prints where things sit on a DD-214 page, with no text from it. See
+[Sharing your DD-214 layout safely](#sharing-your-dd-214-layout-safely).
+
+| Option | Default | Description |
+|---|---|---|
+| `--ocr` | off | OCR a PDF that has no text layer (needs the `ocr` extra) |
+| `-o, --output PATH` | stdout | Write the text to a file instead |
+| `--png PATH` | none | Also draw the geometry as a picture |
+
 ---
 
 ## Input formats
 
 | Input | How it's read |
 |---|---|
-| `.pdf` with a text layer | `pypdf` text extraction plus any fillable-form field values |
-| `.pdf` scan | `--ocr`: `pdf2image` + Tesseract (300 dpi) |
+| `.pdf` with a text layer | `pypdf` text extraction plus any fillable-form field values, and each word's position from `pdfminer.six`. A DD-214 is read by [block position](#reading-a-pdf-by-block-position). |
+| `.pdf` scan | `--ocr`: `pdf2image` + Tesseract, at the scan's own resolution up to 300 dpi |
 | `.png` `.jpg` `.tif` … | Tesseract OCR (needs the `ocr` extra) |
 | `.txt` | Read as-is |
 | `.json` | Pre-extracted DD-214 or DD-215 fields, for use with an upstream OCR or LLM extraction step |
@@ -382,8 +394,8 @@ Before you merge a change to `web/`, run the manual acceptance steps in
 
 ```mermaid
 flowchart LR
-    A[DD-214s + DD-215s<br/>PDF / scan / txt / JSON] --> B[extract.py<br/>text layer · form fields · OCR]
-    B --> C[extractors/ + parse.py<br/>label-based segmentation<br/>→ facts with sources]
+    A[DD-214s + DD-215s<br/>PDF / scan / txt / JSON] --> B[extract.py<br/>text layer · word positions ·<br/>form fields · OCR]
+    B --> C[extractors/ + parse.py<br/>block positions · label-based segmentation<br/>→ facts with sources]
     C --> D[resolve.py → Profile<br/>branch · grade · specialties ·<br/>education · awards · service time]
     D --> E[translate.py<br/>code / variant / title match]
     E -->|DMDC crosswalk<br/>+ COOL + CitM| F[Weighted O*NET<br/>occupations]
@@ -415,6 +427,38 @@ Discharge" vs "Certificate of Uniformed Service", "Social Security Number" vs "D
 Number"). Long instruction text in parentheses is stripped before segmentation. Specialty
 entries are split on the duration that ends each entry ("6 YRS 4 MOS"), on `//`
 separators, or on newlines.
+
+#### Reading a PDF by block position
+
+On the printed form, block 11 sits beside block 12, and block 13 sits beside block 14. A
+PDF's text layer, whether the form was typed into it or OCR added it to a scan, holds that
+page line by line across both columns. Read in that order, block 12's labels end up
+inside the specialties, and awards end up in the education list.
+
+So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position instead:
+
+1. It finds the printed block labels by fuzzy match, so OCR noise such as `REC0RD` or
+   `DEPART MENT` still matches. Each printed word belongs to at most one label.
+2. It boxes each block from its label to the next label on the right and down to the next
+   row of labels, then takes the words inside the box.
+3. It reads block 12 as a grid. The row labels give the rows, and the `YEAR(S)`,
+   `MONTH(S)` and `DAY(S)` headings give the columns. In the number cells only, it
+   repairs OCR's usual confusions: `O` for 0, `l`, `I` or `|` for 1, `S` for 5, and
+   stray punctuation. When a row's cells still do not hold 4, 2 and 2 digits, or hold an
+   impossible month or day, it leaves the row out and adds a note. It does not guess.
+4. It writes blocks 2, 4a, 4b, 11, 12, 13 and 14 back out as plain text, one block after
+   another. The label-based parser reads that text unchanged.
+
+No other block is written, so the name, SSN, birth date, addresses, remarks and
+separation codes never reach the parser. The reader also boxes those blocks and writes no
+word inside their boxes. Each block it writes needs the labels that stop its box before
+such a block. Block 2 needs block 3's label to its right. Blocks 4a and 4b need a label of
+block 7a or 7b below them. Blocks 13 and 14 need a label of 15a to 18 below them. When none
+is found, the reader leaves that block out with a note, and its box does not grow over
+the personal block. A page that sets the form out one block per line
+needs none of this, and is read in line order as before. So is a fillable PDF with filled
+form fields. When too few labels are found, the page is read in line order with a note
+that says so.
 
 ### 2. Matching military codes
 
@@ -539,8 +583,11 @@ DD-214s contain sensitive personal data. The tool is built to keep only what it 
 - **Never captured.** SSN/DoD ID, date of birth, addresses, nearest relative, character
   of service, separation authority/code, reentry code and narrative reason. The parser
   matches these block labels only to find where neighbouring blocks end, and discards
-  their contents. `tests/test_parse.py::test_sensitive_blocks_never_captured` enforces
-  this.
+  their contents. The PDF layout reader never writes those blocks out at all.
+  `tests/test_parse.py::test_sensitive_blocks_never_captured` and
+  `tests/test_layout.py::test_personal_blocks_never_reach_facts_or_report` enforce this.
+  `test_block_whose_bounding_label_is_lost_is_refused_not_grown` drops the labels that
+  bound a block and checks that its box still writes nothing personal.
 - **Not used for matching.** Characterization of service and separation codes are
   excluded on purpose, so they can never influence occupational recommendations.
 - **Local only.** All processing runs on your machine against a local index. Nothing is
@@ -558,6 +605,53 @@ before using it on a resume or in a hiring decision.
 
 ---
 
+## Sharing your DD-214 layout safely
+
+The layout reader boxes each block from the form's printed labels. When it misreads a
+real form, the fix needs that form's geometry: where its labels, words and ruled lines
+sit. `inspect-layout` prints that geometry and no text from the document, so you can send
+it to a maintainer instead of the record.
+
+```bash
+uv run dd214kw inspect-layout "<file>.pdf" -o layout.txt --png layout.png
+```
+
+Add `--ocr` for a scan with no text layer. The words are loaded exactly as `translate`
+loads them. Your file name is not written to either file. The step-by-step script is in
+[`docs/inspect-layout.md`](docs/inspect-layout.md).
+
+`layout.txt` starts with a fixed header that says "geometry only; contains no text from
+your document". Every other line is one of these:
+
+| Line | What it holds |
+|---|---|
+| `source text-layer` or `source ocr` | Where the words came from: the PDF's text layer, in points, or OCR, in pixels |
+| `page 0 size 612.0 792.0 unit pt` | Each page's size |
+| `label L4a page 0 score 97.5 bbox 38.0 85.8 124.3 92.3` | A printed form label that was found, by our id, with its match score (0 to 100) and box |
+| `missing L12h page 0` | A printed form label that was not found |
+| `line 5 page 0 \| 40.0 97.7 56.2 106.7 A3 \| ...` | Every other word, in the order the PDF or OCR gives them, as its box and shape code |
+| `run page 0 bbox ... words 10 crosses 1` | A text line as pdfminer or OCR groups it, and the number of vertical rules it crosses |
+| `rules page 0 source image count 50` | Where the ruled lines came from: drawn in the PDF, or found in the scanned image |
+| `rule page 0 h 35.6 59.9 576.4 59.9` | A horizontal (`h`) or vertical (`v`) ruled line, end to end |
+| `block B4a status read bbox ...` | A box the reader drew, and what it did: `read`, `refused`, `not-found` or `withheld` |
+| `cell B12c yr status read bbox ... words 1 shape D4` | One cell of block 12's grid: its box, status and contents' shape |
+
+A box is `x0 top x1 bottom`, measured from the page's top left corner. A shape code is a
+kind and a length. `D` is digits only, `A` is letters only, `P` is punctuation only, and
+`M` is a mix. So `D8` is eight digits, and `M11` is eleven mixed characters.
+
+`layout.png` draws the same page as shapes on a blank canvas. Labels are green boxes
+tagged with their ids. Other words are grey boxes. The reader's boxes are blue, tagged
+with their block. Ruled lines are orange. The page image is never drawn.
+
+`tests/test_inspect_layout.py` runs the command on each synthetic form, which is filled
+in with fake names, an SSN, addresses, places and dates. It fails if any output line is
+not the fixed header or one of the shapes above, if a token of a fake value appears, or if
+the picture holds a colour other than its five or was drawn with anything but
+rectangles, lines and our ids.
+
+---
+
 ## Project structure
 
 ```
@@ -568,10 +662,12 @@ v2c-translator/
 ├── pyproject.toml              # uv project; console script `dd214kw`
 ├── uv.lock
 ├── src/dd214kw/
-│   ├── cli.py                  # argparse CLI: build-index | translate | lookup
-│   ├── extract.py              # PDF text layer, form fields, OCR fallback
+│   ├── cli.py                  # argparse CLI: build-index | translate | lookup | inspect-layout
+│   ├── extract.py              # PDF text layer, word positions, form fields, OCR fallback
+│   ├── inspect_layout.py       # a DD-214 page's geometry, with no text, to share
 │   ├── extractors/             # read(), detect(): one module per document type, emitting facts
 │   │   ├── dd214.py            # DD-214 text (2000 + 2022 layouts) and JSON
+│   │   ├── dd214_layout.py     # a DD-214 page read by block position: boxes and block 12's grid
 │   │   ├── dd215.py            # DD-215 JSON
 │   │   └── vmet.py             # VMET (DD Form 2586) text, 2010 edition
 │   ├── parse.py                # label-based DD-214 field parsers (2000 + 2022 layouts)
@@ -602,10 +698,15 @@ v2c-translator/
 │   ├── test_vmet.py            # VMET alone and with a DD-214
 │   ├── test_golden.py          # each fixture renders byte-identical to docs/examples/
 │   ├── test_pii_guard.py       # pii_guard flags records and IDs, passes placeholders
-│   └── test_translate.py       # end-to-end (skipped if no index is built)
+│   ├── test_layout.py          # DD-214 PDFs read by block position: text layer, noise, OCR
+│   ├── test_inspect_layout.py  # inspect-layout prints geometry only, on every synthetic form
+│   ├── test_translate.py       # end-to-end (skipped if no index is built)
+│   ├── synthetic_dd214.py      # draws a fictional AUG 2009 DD-214 PDF, and scans and OCRs it
+│   └── ocr_sweep.py            # which fields survive each scan condition: dpi, blur, noise, skew
 ├── docs/
 │   ├── data-sources.md         # research inventory of data sources
 │   ├── design/                 # design docs (multi-document input)
+│   ├── inspect-layout.md       # how to send your DD-214's layout, step by step
 │   └── examples/               # generated reports for each DD-214 fixture
 └── scripts/
     ├── fetch_public_data.py    # download the extra research and evaluation datasets
@@ -619,7 +720,7 @@ v2c-translator/
 ```bash
 uv sync                                   # installs runtime + dev group (pytest, ruff, reportlab)
 uv run dd214kw build-index --download     # needed for end-to-end tests
-uv run pytest                             # 74 tests
+uv run pytest                             # 88 tests
 uv run ruff check src tests scripts
 uv run ruff format src tests scripts
 uv run python scripts/pii_guard.py        # no records, SSNs or DoD IDs in tracked files
@@ -638,14 +739,18 @@ blocks the merge. To run the guard on staged files before each commit, install
 [pre-commit](https://pre-commit.com) and run `pre-commit install`.
 
 - **Python 3.12+**, managed with **uv**; linted and formatted with **ruff** (line length 100).
-- Runtime dependencies: `httpx`, `openpyxl`, `pypdf`, `rapidfuzz`, `rich`. OCR extras:
-  `pytesseract`, `pdf2image`.
+- Runtime dependencies: `httpx`, `openpyxl`, `pdfminer.six`, `pypdf`, `rapidfuzz`, `rich`.
+  OCR extras: `pytesseract`, `pdf2image`.
 - **Test fixtures are synthetic.** They use fictional names and placeholder IDs. Never
   commit a real DD-214, even a redacted one, to this repository.
 - End-to-end tests read the index from `$DD214KW_INDEX` (or the default path) and are
   skipped when it doesn't exist, so the parser tests run without downloading data. CI
-  builds the index, so they never skip there. One test renders a fixture to PDF with
-  `reportlab` to exercise the PDF path.
+  builds the index, so they never skip there.
+- **PDFs are drawn at test time.** `tests/synthetic_dd214.py` draws a fictional DD-214 with
+  `reportlab`. The OCR tests rasterize it with `pdftoppm` and OCR it with `tesseract`. They
+  skip where those binaries are missing, which includes CI, and the `--ocr` test also
+  needs `uv sync --extra ocr`. To measure how far OCR noise can go, run
+  `uv run --extra ocr python tests/ocr_sweep.py --dpi 150,200 --blur 0.6,1.5 --rotate 0,1`.
 
 Regenerate the example reports, and the web app's report fixture, after changing scoring,
 rules or the report's fields:
@@ -678,10 +783,26 @@ affects the output.
 
 ## Known limitations
 
-- **Real-world PDFs vary.** The parser has only been tested on synthetic documents. Many
-  veterans have scanned copies, which need OCR. On the 2000 form, blocks 13 and 14 sit
-  side by side, so plain text extraction can interleave them. If parsing is noisy, extract
-  the fields upstream (OCR or an LLM) and pass JSON.
+- **The PDF layout reader is tested on synthetic forms only.** It
+  [reads a DD-214 by block position](#reading-a-pdf-by-block-position), using the
+  geometry of the AUG 2009 edition, which keeps the 2000 layout's block numbers. Its
+  limits, measured with `tests/ocr_sweep.py` on the synthetic form:
+  - The 2022 edition is still read line by line, so its side-by-side blocks can mix. Its
+    geometry is not known here.
+  - Skew of 0.5° or more, or a scan below 200 dpi, loses fields first. Small labels, such
+    as block 2's, stop matching. Lost fields are left out with a note.
+  - An OCR misread that still makes a possible value, such as 15 read as 13, passes
+    through. Block 12's dates could catch some of these, but the reader does not check
+    them yet.
+  - OCR damage inside a block's text, such as `NOTHING FOLLOWS` read as `NOTHING POLLOWS`,
+    still reaches the parser as an extra entry.
+  - A fillable PDF with filled form fields is read line by line, as before. Its field
+    values have no position on the page.
+
+  It failed on a real scanned AUG 2009 form, whose geometry differs from the synthetic
+  one. To help fit it to your form, send its layout: see
+  [Sharing your DD-214 layout safely](#sharing-your-dd-214-layout-safely). If a document
+  still parses badly, extract the fields upstream (OCR or an LLM) and pass JSON.
 - **Supplemental crosswalks are loose.** COOL and Careers in the Military links sometimes
   add surprising occupations (e.g. 11B → *Broadcast Technicians*, via radio duties).
   They're down-weighted and traceable with `--explain`, but not removed.
@@ -710,7 +831,7 @@ for translation. Steps 1–4 are done: the facts and resolver, several files at 
 DD-215 corrections and the VMET reader. The JST reader (item 3 below) is step 5.
 
 1. **Validation on real documents.** Collect consented, redacted DD-214s; measure parse
-   accuracy per block; add a layout-aware PDF extractor for the side-by-side blocks.
+   accuracy per block; check the layout reader's block geometry against them.
 2. **Evaluation harness.** Score occupation matching against the VOW Act enhanced
    crosswalk (68 MOCs → 962 occupations with pay-grade and attainability labels) using
    top-k recall.

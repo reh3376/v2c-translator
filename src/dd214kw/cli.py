@@ -1,4 +1,4 @@
-"""Command-line interface: dd214kw build-index | translate | lookup."""
+"""Command-line interface: dd214kw build-index | translate | lookup | inspect-layout."""
 
 from __future__ import annotations
 
@@ -85,6 +85,30 @@ def _cmd_lookup(a: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_inspect(a: argparse.Namespace) -> int:
+    from .inspect_layout import inspect, report, write_png
+
+    try:
+        result = inspect(a.file, ocr=a.ocr)
+    except ExtractionError as e:
+        err.print(f"[red]{e}[/]")  # no file name: it may hold the person's name
+        return 2
+    text = "\n".join(report(result)) + "\n"
+    if a.output:
+        a.output.write_text(text, encoding="utf-8")
+    else:
+        sys.stdout.write(text)
+    if a.png:
+        write_png(result, a.png)
+    written = " and ".join(str(p) for p in (a.output, a.png) if p)
+    err.print(
+        (f"Wrote {written}. " if written else "")
+        + "It holds boxes, shape codes and our label ids, and no text from the document. "
+        "Look it over before you share it."
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="dd214kw", description=__doc__)
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -119,6 +143,16 @@ def main(argv: list[str] | None = None) -> int:
     lk.add_argument("code")
     lk.add_argument("--branch", choices=sorted(BRANCH_SVCS))
     lk.set_defaults(func=_cmd_lookup)
+
+    ins = sub.add_parser(
+        "inspect-layout",
+        help="Print a DD-214 page's geometry, with no text from it, to share for calibration",
+    )
+    ins.add_argument("file", type=Path, metavar="FILE", help="The DD-214 (.pdf or image)")
+    ins.add_argument("--ocr", action="store_true", help="OCR a scan with no text layer")
+    ins.add_argument("-o", "--output", type=Path, help="Write the text here, not to stdout")
+    ins.add_argument("--png", type=Path, help="Also draw the geometry as a picture here")
+    ins.set_defaults(func=_cmd_inspect)
 
     a = p.parse_args(argv)
     try:
