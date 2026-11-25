@@ -9,8 +9,9 @@ DoD/DMDC military occupational crosswalk and the U.S. Department of Labor's O*NE
 database.
 
 The first component, **`dd214kw`**, reads a veteran's **DD Form 214s**, plus any
-**DD Form 215** corrections, and produces one ranked set of civilian keywords. Every
-keyword can be traced back to the document and block, and the data source, it came from.
+**DD Form 215** corrections and their **VMET** (DD Form 2586), and produces one ranked set
+of civilian keywords. Every keyword can be traced back to the document and block, and the
+data source, it came from.
 
 > **Status: v0.1 (alpha).** It works end to end on synthetic DD-214s for the Army, Navy,
 > Air Force and Marine Corps, in both the 2000 and 2022 form layouts. It merges several
@@ -41,7 +42,7 @@ keyword can be traced back to the document and block, and the data source, it ca
 
 ## What it does
 
-Given one person's DD-214s and any DD-215s, `dd214kw`:
+Given one person's DD-214s, any DD-215s and their VMET, `dd214kw`:
 
 1. **Extracts** text from a PDF, a scanned image (with OCR), plain text, or pre-extracted JSON.
 2. **Parses** the occupation-relevant blocks of each DD-214, whichever of the two layouts it is:
@@ -51,17 +52,20 @@ Given one person's DD-214s and any DD-215s, `dd214kw`:
    - decorations and badges
    - military education
    - net, prior, foreign and sea service time
-3. **Merges** every document into one profile. Service time from separate periods adds
+3. **Reads** a VMET's occupations, each with the O*NET occupations the VMET lists for it,
+   and its courses, with ACE IDs and descriptions.
+4. **Merges** every document into one profile. Service time from separate periods adds
    up, a DD-215 replaces the values for the period it corrects, and a specialty, course
    or award that appears on several documents counts once.
-4. **Matches** each specialty (Army MOS, Air/Space Force AFSC, Navy rating, Marine Corps
+5. **Matches** each specialty (Army MOS, Air/Space Force AFSC, Navy rating, Marine Corps
    MOS, Coast Guard rating) to the DMDC crosswalk. It handles skill-level suffixes, retired
    codes and written-out titles.
-5. **Maps** each code to weighted civilian occupations (O*NET-SOC). Military-only
-   occupations are replaced with curated civilian equivalents.
-6. **Scores** keywords in nine categories and merges them with evidence-based rules for
+6. **Maps** each code to weighted civilian occupations (O*NET-SOC), including the ones
+   the VMET lists for it. Military-only occupations are replaced with curated civilian
+   equivalents.
+7. **Scores** keywords in nine categories and merges them with evidence-based rules for
    leadership scope, training, recognition and experience.
-7. **Outputs** a terminal report, Markdown, JSON, or a comma-separated ATS keyword string.
+8. **Outputs** a terminal report, Markdown, JSON, or a comma-separated ATS keyword string.
 
 Excerpt for a synthetic Navy ET1 with 10 years of service
 (full output: [`docs/examples/navy_2022.md`](docs/examples/navy_2022.md)):
@@ -108,6 +112,7 @@ uv run dd214kw translate tests/fixtures/navy_2022.txt -f md -o navy.md
 uv run dd214kw translate tests/fixtures/airforce.json -f json
 uv run dd214kw translate tests/fixtures/marines.json -f ats
 uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_2000_dd215.json -f md
+uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_vmet.txt
 ```
 
 Optional OCR support for scanned DD-214s:
@@ -142,18 +147,20 @@ Downloads the source data (if asked) and builds the SQLite index.
 
 ### `translate FILE...`
 
-Translates one person's documents into one report. Pass every DD-214 and DD-215 for that
-person, in any order:
+Translates one person's documents into one report. Pass every DD-214, DD-215 and VMET for
+that person, in any order:
 
 - DD-214s for separate periods add up. Net active service is summed across the periods.
 - A DD-215 corrects the DD-214 whose separation date it names. See
   [DD-215 JSON schema](#dd-215-json-schema).
+- A specialty on both a DD-214 and a VMET is one match, with the longer time in it.
 
 The content of each file decides its document type. If a file can't be read, the command
 exits with code 2 and the error names that file.
 
 ```bash
 uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_2000_dd215.json -f md
+uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_vmet.txt
 ```
 
 | Option | Default | Description |
@@ -193,6 +200,7 @@ A 68W [E] Combat Medic Specialist status=A
 | `.png` `.jpg` `.tif` … | Tesseract OCR (needs the `ocr` extra) |
 | `.txt` | Read as-is |
 | `.json` | Pre-extracted DD-214 or DD-215 fields, for use with an upstream OCR or LLM extraction step |
+| VMET (DD Form 2586), `.pdf` or `.txt` | The labels of the 2010 edition, taken from publicly posted samples. It is not yet validated on a real VMET. From the header line that holds the name, only the pay grade is read. |
 
 A DD-215 is read only as JSON. There is no reader for DD-215 text or PDF yet.
 
@@ -389,13 +397,15 @@ the matching personnel category (enlisted, warrant or officer) are preferred:
 
 ### 3. Weighting civilian occupations
 
-Each matched code pulls civilian occupations from three crosswalks:
+Each matched code pulls civilian occupations from three crosswalks, and from the
+member's VMET when one is given:
 
 | Source | Base weight | Notes |
 |---|---|---|
 | DMDC crosswalk (`dmdc`) | 1.0 | The authoritative mapping: up to 4 SOC/O*NET codes per military code |
 | Service COOL links (`cool`) | 0.7 | Credentialing-oriented links |
 | Careers in the Military (`citm`) | 0.5 | ASVAB CEP links |
+| VMET (`vmet`) | 0.9 | Per-person links from the member's own VMET |
 | Curated analog (`*:analog-of-55-…`) | × 0.5 | Replaces military-only SOC 55-xxxx targets |
 
 Three adjustments keep noisy sources from dominating:
@@ -516,7 +526,8 @@ v2c-translator/
 │   ├── extract.py              # PDF text layer, form fields, OCR fallback
 │   ├── extractors/             # read(), detect(): one module per document type, emitting facts
 │   │   ├── dd214.py            # DD-214 text (2000 + 2022 layouts) and JSON
-│   │   └── dd215.py            # DD-215 JSON
+│   │   ├── dd215.py            # DD-215 JSON
+│   │   └── vmet.py             # VMET (DD Form 2586) text, 2010 edition
 │   ├── parse.py                # label-based DD-214 field parsers (2000 + 2022 layouts)
 │   ├── evidence.py             # fact kinds, Source provenance, scrub()
 │   ├── resolve.py              # resolve(facts) -> Profile: dedup and conflict policy
@@ -528,11 +539,13 @@ v2c-translator/
 │   └── data/analog_55.csv      # civilian analogs for military-only SOC 55-xxxx
 ├── tests/
 │   ├── fixtures/               # synthetic DD-214s: Army 2000, Navy 2022, AF + USMC JSON;
-│   │                           #   a DD-215 JSON that corrects the Army 2000 DD-214
+│   │                           #   a DD-215 JSON that corrects the Army 2000 DD-214;
+│   │                           #   a VMET for the same soldier
 │   ├── test_parse.py           # parser, rules, privacy (no index needed)
 │   ├── test_evidence.py        # fact kinds, extraction, PII scrubbing
 │   ├── test_resolve.py         # resolution policy, from hand-made facts
 │   ├── test_multi_document.py  # several files: separate periods, DD-215 corrections
+│   ├── test_vmet.py            # VMET alone and with a DD-214
 │   ├── test_golden.py          # each fixture renders byte-identical to docs/examples/
 │   ├── test_pii_guard.py       # pii_guard flags records and IDs, passes placeholders
 │   └── test_translate.py       # end-to-end (skipped if no index is built)
@@ -552,7 +565,7 @@ v2c-translator/
 ```bash
 uv sync                                   # installs runtime + dev group (pytest, ruff, reportlab)
 uv run dd214kw build-index --download     # needed for end-to-end tests
-uv run pytest                             # 63 tests
+uv run pytest                             # 74 tests
 uv run ruff check src tests scripts
 uv run ruff format src tests scripts
 uv run python scripts/pii_guard.py        # no records, SSNs or DoD IDs in tracked files
@@ -629,16 +642,16 @@ Planned components, in rough priority order (sources are in
 [`docs/data-sources.md`](docs/data-sources.md)). Multi-document input follows the
 accepted design in [`docs/design/multi-document-input.md`](docs/design/multi-document-input.md):
 every document becomes source-tagged facts, which one resolver merges into a profile
-for translation. Steps 1–3 are done: the facts and resolver, several files at once, and
-DD-215 corrections. The VMET and JST readers (item 3 below) are steps 4–5.
+for translation. Steps 1–4 are done: the facts and resolver, several files at once,
+DD-215 corrections and the VMET reader. The JST reader (item 3 below) is step 5.
 
 1. **Validation on real documents.** Collect consented, redacted DD-214s; measure parse
    accuracy per block; add a layout-aware PDF extractor for the side-by-side blocks.
 2. **Evaluation harness.** Score occupation matching against the VOW Act enhanced
    crosswalk (68 MOCs → 962 occupations with pay-grade and attainability labels) using
    top-k recall.
-3. **Joint Services Transcript (JST) and VMET (DD Form 2586) parsers**, with course
-   decoding through the ACE Military Guide API.
+3. **Joint Services Transcript (JST) parser**, with course decoding through the ACE
+   Military Guide API. The VMET (DD Form 2586) reader is done.
 4. **Skill-identifier roll-up.** Fold ASI/SQI/SEI/NEC titles into the parent specialty as
    skill boosts.
 5. **Resume parsing** and military-jargon → civilian rewriting for resume bullets.

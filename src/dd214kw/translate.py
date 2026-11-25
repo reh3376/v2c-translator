@@ -5,11 +5,13 @@ from __future__ import annotations
 import math
 import re
 from collections import defaultdict
+from collections.abc import Hashable, Iterable
+from dataclasses import replace
 
 from rapidfuzz import fuzz, process
 
 from .evidence import OccupationHeld
-from .index import ANALOG_WEIGHT, Index
+from .index import ANALOG_WEIGHT, LINK_WEIGHTS, Index
 from .models import (
     CATEGORIES,
     Keyword,
@@ -17,7 +19,7 @@ from .models import (
     OccupationLink,
     SpecialtyMatch,
 )
-from .resolve import Profile
+from .resolve import Profile, _norm
 from .rules import rule_keywords
 
 # Crosswalk SVC codes searched for each branch (primary codes first). See data-sources.md.
@@ -108,8 +110,12 @@ def match_specialty(
     return result
 
 
-def _occupations(index: Index, svc: str, code: str, moc_title: str = "") -> list[OccupationLink]:
-    links_raw = index.links(svc, code)
+def _occupations(
+    index: Index, svc: str, code: str, moc_title: str = "", vmet: Iterable[str] = ()
+) -> list[OccupationLink]:
+    """Weighted civilian occupations for one code: its crosswalk links plus `vmet`, the
+    O*NET codes the member's VMET lists for it."""
+    links_raw = [*index.links(svc, code), *((o, "vmet", LINK_WEIGHTS["vmet"]) for o in vmet)]
     fanout: dict[str, int] = defaultdict(int)
     for _, source, _ in links_raw:
         fanout[source] += 1
@@ -179,21 +185,38 @@ class _Acc:
         ]
 
 
+def _vmet_links(profile: Profile, codes: Iterable[str | None]) -> list[str]:
+    """O*NET codes that a VMET lists under any of `codes`."""
+    keys = {_norm(c) for c in codes if c}
+    links = profile.civilian_equivalents
+    return list(dict.fromkeys(c.value.onet for c in links if _norm(c.value.for_code or "") in keys))
+
+
 def translate(index: Index, profile: Profile, top: int = 12) -> KeywordReport:
     ctx = profile.context
     warnings = [c.message for c in profile.conflicts]
-    matches: list[SpecialtyMatch] = []
-    for occ in profile.occupations:
+
+    # Specialties that match one crosswalk code are one job, whichever documents list it
+    # ("11B30 INFANTRYMAN" on a DD-214, "11B" on a VMET). Keep the first, with the longest time.
+    groups: dict[Hashable, list[SpecialtyMatch]] = {}
+    for i, occ in enumerate(profile.occupations):
         m = match_specialty(index, occ.value, ctx and ctx.branch, ctx and ctx.pay_grade)
+        groups.setdefault((m.svc, m.code) if m.code else i, []).append(m)
+    matches: list[SpecialtyMatch] = []
+    for group in groups.values():
+        m = group[0]
         if m.code:
-            m.occupations = _occupations(index, m.svc, m.code, m.title or "")
+            months = [g.specialty.months for g in group if g.specialty.months is not None]
+            m.specialty = replace(m.specialty, months=max(months, default=None))
+            vmet = _vmet_links(profile, [m.code, *(g.specialty.code for g in group)])
+            m.occupations = _occupations(index, m.svc, m.code, m.title or "", vmet)
             if not m.occupations:
                 warnings.append(
                     f"'{m.code} {m.title}' has no civilian crosswalk link "
                     "(often a skill identifier rather than a primary specialty)."
                 )
         else:
-            warnings.append(f"Could not match specialty: '{occ.value.title}'")
+            warnings.append(f"Could not match specialty: '{m.specialty.title}'")
         matches.append(m)
 
     # Weight specialties by time in specialty (sqrt softens dominance of the longest one).

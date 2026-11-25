@@ -1,6 +1,6 @@
 # Design: multi-document input
 
-Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · steps 1-2: merged (PR #1) · step 3: merged (PR #2)
+Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · steps 1-2: merged (PR #1) · step 3: merged (PR #2) · step 4: in progress
 
 ## Problem
 
@@ -97,7 +97,8 @@ class ServiceContext:      branch: str; component: str | None; pay_grade: str | 
 class OccupationHeld:      code: str | None; title: str; months: int | None
                            start: date | None; end: date | None; source: Source
 @dataclass(frozen=True, slots=True)
-class CivilianEquivalent:  onet: str; title: str; source: Source          # VMET
+class CivilianEquivalent:  onet: str; title: str                          # VMET
+                           for_code: str | None; source: Source           # the code it is listed under
 @dataclass(frozen=True, slots=True)
 class TrainingCompleted:   title: str; weeks: float | None; completed: date | None
                            ace_id: str | None; description: str | None; source: Source
@@ -155,17 +156,31 @@ class Profile:
 def resolve(facts: Iterable[Fact]) -> Profile: ...
 ```
 
-### Resolution policy (all in `resolve.py`)
+### Resolution policy
+
+Document-level deduplication lives in `resolve.py`:
 
 | Fact | Identity key | On duplicate | On conflict |
 |---|---|---|---|
 | `ServiceContext` | — | keep latest by `as_of` / `issued` | report a branch disagreement as a `Conflict` |
 | `OccupationHeld` | normalized code, else normalized title | union sources; months = max | — |
-| `CivilianEquivalent` | `onet` | union sources | — |
+| `CivilianEquivalent` | (normalized `for_code`, `onet`) | union sources | — |
 | `TrainingCompleted` | `ace_id`, else (normalized title, year) | union; prefer the fact with `ace_id`/`description` | — |
 | `Award` | normalized name | count = max | — |
 | `ServiceTime` | (kind, `period_end`) | DD-215 > DD-214 for the same period | sum across different periods |
 | `Accomplishment`, `SkillClaim` | normalized text | union sources | — |
+
+Cross-document occupation identity lives in `translate.py`. Whether "11B30 INFANTRYMAN"
+on a DD-214 and "11B" on a VMET are one job is a crosswalk question, and the crosswalk
+lives in `translate`. After matching, `translate` merges the `SpecialtyMatch`es that
+resolve to the same (svc, code):
+
+- It keeps the first specialty in profile order, with months = max across the group.
+- It collects the VMET links of every specialty in the group.
+- The order of the matches does not otherwise change.
+
+One document can also list one code more than once. The VMET lists each stint in a job
+as its own entry, so its extractor sums the months of entries for one code.
 
 ### Downstream changes
 
@@ -176,7 +191,9 @@ def rule_keywords(profile: Profile) -> list[Keyword]
 
 - **Occupation weighting** gains one source: `CivilianEquivalent` facts enter the
   existing link merge as `"vmet"` with base weight 0.9 (official, but per-person rather
-  than per-code). They need no new code path; they're another row in `LINK_WEIGHTS`.
+  than per-code). A specialty takes the links whose `for_code` is its matched crosswalk
+  code or its own code. Fan-out decay, the 55-xxxx analog swap and title relevance apply
+  to them as to any other supplemental source.
 - **Corroboration** comes for free: an occupation held on three documents carries three
   sources, which can lift its specialty weight.
 - **`Keyword.sources`** names the document: "DD-214 block 14 · JST" instead of a bare
@@ -214,7 +231,7 @@ Each step ships on its own, with `docs/examples/*.md` regenerated and diffed.
    handling. Test: a DD-214 plus DD-215 pair, and two DD-214s for separate periods.
 4. **VMET extractor.** Structured, highest value: it brings its own O*NET links. Test
    that a VMET-only occupation shows up; a VMET plus DD-214 duplicate collapses to one
-   occupation with two sources.
+   match.
 5. **JST extractor.** Courses with ACE IDs and descriptions, and occupations with dates.
    Training-to-skill extraction from ACE descriptions comes later, behind the ACE API
    key.
@@ -226,8 +243,9 @@ Each step ships on its own, with `docs/examples/*.md` regenerated and diffed.
 
 ## Open questions
 
-1. **Samples.** VMET and JST layouts need real (redacted) samples before steps 4–5. ACE
-   publishes sample JSTs; a VMET sample is the main gap.
+1. **Samples.** The VMET reader's labels come from publicly posted samples of the 2010
+   edition. The reader still needs validation on a real, redacted VMET. The JST layout
+   needs real (redacted) samples before step 5; ACE publishes sample JSTs.
 2. **Rating scores.** Should evaluation numeric ratings ever be used? This design
    excludes them, the same way it excludes characterization.
 3. **Model-extracted facts.** How much weight should a resume or LLM fact carry against
