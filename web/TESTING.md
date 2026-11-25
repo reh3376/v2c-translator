@@ -7,7 +7,7 @@ Run these steps on your own computer before you merge a change to `web/`.
 1. Clone the repository. In its root, run `uv sync`.
 2. Build the index: `uv run dd214kw build-index --download`.
 3. Run `cd web && pnpm install && pnpm dev`.
-4. Open http://localhost:3000.
+4. Open http://localhost:3009.
 
 ## Steps
 
