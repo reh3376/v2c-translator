@@ -573,5 +573,6 @@ of the U.S. Armed Forces, or the Department of Labor.
 
 ## License
 
-The source code has no license yet; add a `LICENSE` file to set terms. The bundled and
-downloaded data remain under CC BY 4.0 as described above.
+The source code is released under the [MIT License](LICENSE). The O*NET and DMDC data the
+tool downloads and indexes is not covered by the MIT License. It remains under CC BY 4.0
+and requires the attribution [above](#attribution).
