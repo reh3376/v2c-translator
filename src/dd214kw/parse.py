@@ -1,5 +1,6 @@
-"""Parse DD-214 text (2000 "Certificate of Release or Discharge" and 2022
-"Certificate of Uniformed Service" layouts) into a ServiceRecord.
+"""Field parsers for DD-214 text (2000 "Certificate of Release or Discharge" and 2022
+"Certificate of Uniformed Service" layouts). The DD-214 extractor (extractors/dd214.py)
+assembles their results into facts.
 
 Segmentation is label-based rather than block-number-based, so the same code
 handles both layouts (blocks were renumbered in 2022). Labels for PII and
@@ -10,9 +11,8 @@ their contents are discarded.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 
-from .models import Course, Duration, ServiceRecord, Specialty
+from .models import Course, Duration, Specialty
 
 # (segment key, label regex). Order doesn't matter; segments are sorted by position.
 LABELS: list[tuple[str, str]] = [
@@ -299,79 +299,3 @@ def parse_courses(seg: str | None) -> list[Course]:
 
 def parse_decorations(seg: str | None) -> list[str]:
     return [d.upper() for d in _split_entries(seg or "", allow_commas=True)]
-
-
-def _record_subfield(record: str, label: str) -> Duration | None:
-    m = re.search(label, record)
-    return parse_duration(record[m.end() : m.end() + 120]) if m else None
-
-
-# --------------------------------------------------------------------------- entry points
-
-
-def parse_text(text: str) -> ServiceRecord:
-    segs = segment(text)
-    rec = ServiceRecord(form_version=detect_version(text))
-    head = segs["_head"] + " " + segs.get("branch", "")
-
-    rec.branch = detect_branch(segs.get("branch", "")) or detect_branch(head)
-    if comp := re.search(r"\b(REGULAR|RESERVE|NATIONAL\s*GUARD|ACTIVE)\b", segs.get("branch", "")):
-        rec.component = comp.group(1).title()
-    rec.grade = (segs.get("grade") or "").split("\n")[0].strip()[:40] or None
-    rec.pay_grade = (
-        normalize_pay_grade(segs.get("pay_grade"))
-        or pay_grade_from_rank(rec.grade)
-        or normalize_pay_grade(segs.get("grade"))
-    )
-    rec.specialties = parse_specialties(segs.get("specialty"))
-    rec.decorations = parse_decorations(segs.get("decorations"))
-    rec.education = parse_courses(segs.get("education"))
-
-    record = segs.get("record", "")
-    rec.net_active = _record_subfield(record, r"NET\s*ACTIVE\s*SERVICE")
-    rec.prior_active = _record_subfield(record, r"(?:TOTAL\s*)?PRIOR\s*ACTIVE\s*SERVICE")
-    rec.foreign_service = _record_subfield(record, r"FOREIGN\s*SERVICE")
-    rec.sea_service = _record_subfield(record, r"SEA\s*SERVICE")
-
-    if rec.form_version == "unknown":
-        rec.warnings.append("Could not identify the DD-214 layout; results may be incomplete.")
-    if not rec.branch:
-        rec.warnings.append("Branch of service not found (block 2).")
-    if not rec.specialties:
-        rec.warnings.append("No specialty found (block 11 on 2000 form / block 12 on 2022 form).")
-    return rec
-
-
-def _as_text(v: str | Iterable[str] | None) -> str:
-    if v is None:
-        return ""
-    return v if isinstance(v, str) else "//".join(v)
-
-
-def parse_json(data: dict) -> ServiceRecord:
-    """Accept pre-extracted fields (e.g. from an OCR/LLM pipeline).
-
-    Keys: branch, component, grade, pay_grade, specialty, decorations, education,
-    net_active, prior_active, foreign_service, sea_service. List or string values.
-    """
-    rec = ServiceRecord(form_version="json")
-    rec.branch = detect_branch(data.get("branch", "")) or data.get("branch")
-    rec.component = data.get("component")
-    rec.grade = data.get("grade")
-    rec.pay_grade = normalize_pay_grade(data.get("pay_grade")) or pay_grade_from_rank(rec.grade)
-    rec.specialties = parse_specialties(_as_text(data.get("specialty") or data.get("specialties")))
-    rec.decorations = parse_decorations(_as_text(data.get("decorations")))
-    rec.education = parse_courses(_as_text(data.get("education")))
-    for key in ("net_active", "prior_active", "foreign_service", "sea_service"):
-        v = data.get(key)
-        if isinstance(v, dict):
-            setattr(
-                rec,
-                key,
-                Duration(int(v.get("years", 0)), int(v.get("months", 0)), int(v.get("days", 0))),
-            )
-        elif v:
-            setattr(rec, key, parse_duration(str(v)))
-    if not rec.specialties:
-        rec.warnings.append("No specialty provided.")
-    return rec

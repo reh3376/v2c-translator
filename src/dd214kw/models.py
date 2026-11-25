@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .evidence import Document, OccupationHeld
+    from .resolve import Profile
 
 
 def _ats_term(term: str) -> str:
@@ -16,7 +21,7 @@ def _ats_term(term: str) -> str:
     return re.split(r",(?![^()]*\))", term)[0].strip()
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class Duration:
     years: int = 0
     months: int = 0
@@ -50,32 +55,6 @@ class Course:
 
 
 @dataclass(slots=True)
-class ServiceRecord:
-    """The occupation-relevant subset of a DD-214.
-
-    PII and adverse-action fields (SSN/DoD ID, DOB, addresses, character of service,
-    separation/reentry codes, narrative reason) are deliberately never captured.
-    """
-
-    form_version: str = "unknown"  # "2000", "2022", "json", "unknown"
-    branch: str | None = None  # Army, Navy, Air Force, Marine Corps, Coast Guard, Space Force
-    component: str | None = None
-    grade: str | None = None
-    pay_grade: str | None = None  # normalized: E5, W2, O3
-    specialties: list[Specialty] = field(default_factory=list)
-    decorations: list[str] = field(default_factory=list)
-    education: list[Course] = field(default_factory=list)
-    net_active: Duration | None = None
-    prior_active: Duration | None = None
-    foreign_service: Duration | None = None
-    sea_service: Duration | None = None
-    warnings: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
-
-@dataclass(slots=True)
 class OccupationLink:
     onet: str
     title: str
@@ -85,7 +64,7 @@ class OccupationLink:
 
 @dataclass(slots=True)
 class SpecialtyMatch:
-    specialty: Specialty
+    specialty: OccupationHeld
     svc: str | None = None
     code: str | None = None
     title: str | None = None
@@ -116,10 +95,11 @@ CATEGORIES: dict[str, str] = {
 
 @dataclass(slots=True)
 class KeywordReport:
-    record: ServiceRecord
+    profile: Profile
     matches: list[SpecialtyMatch]
     keywords: dict[str, list[Keyword]]
     warnings: list[str] = field(default_factory=list)
+    documents: list[Document] = field(default_factory=list)  # the documents read
 
     def ats_keywords(self, limit: int = 40) -> list[str]:
         """Flat, de-duplicated list of short terms, round-robin across categories.
@@ -158,7 +138,8 @@ class KeywordReport:
 
     def to_dict(self) -> dict:
         return {
-            "record": self.record.to_dict(),
+            "profile": asdict(self.profile),
+            "documents": [asdict(d) for d in self.documents],
             "matches": [asdict(m) for m in self.matches],
             "keywords": {c: [asdict(k) for k in ks] for c, ks in self.keywords.items()},
             "ats_keywords": self.ats_keywords(),

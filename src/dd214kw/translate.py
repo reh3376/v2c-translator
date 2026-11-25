@@ -1,4 +1,4 @@
-"""ServiceRecord -> civilian occupations -> ranked workforce keywords."""
+"""Profile -> civilian occupations -> ranked workforce keywords."""
 
 from __future__ import annotations
 
@@ -8,17 +8,16 @@ from collections import defaultdict
 
 from rapidfuzz import fuzz, process
 
+from .evidence import OccupationHeld
 from .index import ANALOG_WEIGHT, Index
 from .models import (
     CATEGORIES,
     Keyword,
     KeywordReport,
     OccupationLink,
-    ServiceRecord,
-    Specialty,
     SpecialtyMatch,
 )
-from .parse import DURATION_STRICT_RE
+from .resolve import Profile
 from .rules import rule_keywords
 
 # Crosswalk SVC codes searched for each branch (primary codes first). See data-sources.md.
@@ -40,13 +39,12 @@ TITLE_MATCH_CUTOFF = 88
 # --------------------------------------------------------------------------- matching
 
 
-def _candidate_codes(raw: str) -> list[str]:
+def _candidate_codes(raw: str, code: str | None = None) -> list[str]:
     u = raw.upper()
-    cleaned = DURATION_STRICT_RE.sub(" ", u)
-    toks: list[str] = []
+    toks: list[str] = [code.strip().upper()] if code else []
     toks += re.findall(r"\(([A-Z]{2,4})\)", u)  # "ELECTRONICS TECHNICIAN (ET)"
     toks += re.findall(r"^\s*([A-Z]{2,4})\s*[-\u2013/:]", u)  # "ET - ELECTRONICS TECHNICIAN"
-    toks += [t for t in re.findall(r"\b[A-Z0-9]{3,8}\b", cleaned) if re.search(r"\d", t)]
+    toks += [t for t in re.findall(r"\b[A-Z0-9]{3,8}\b", u) if re.search(r"\d", t)]
     return list(dict.fromkeys(toks))
 
 
@@ -62,7 +60,7 @@ def _variants(tok: str) -> list[tuple[str, str]]:
 
 
 def _clean_title(raw: str) -> str:
-    u = DURATION_STRICT_RE.sub(" ", raw.upper())
+    u = raw.upper()
     u = re.sub(r"\b[A-Z0-9]*\d[A-Z0-9]*\b|\([A-Z]{2,4}\)", " ", u)
     u = re.sub(
         r"\b(FIRST|SECOND|THIRD) CLASS\b|\bPETTY OFFICER\b|\bPRIMARY\b|\bMOS\b|\bAFSC\b|"
@@ -74,13 +72,13 @@ def _clean_title(raw: str) -> str:
 
 
 def match_specialty(
-    index: Index, spec: Specialty, branch: str | None, pay_grade: str | None
+    index: Index, spec: OccupationHeld, branch: str | None, pay_grade: str | None
 ) -> SpecialtyMatch:
     svcs = BRANCH_SVCS.get(branch or "", ALL_PRIMARY)
     mpc = pay_grade[0] if pay_grade else None
     result = SpecialtyMatch(specialty=spec)
 
-    for tok in _candidate_codes(spec.raw):
+    for tok in _candidate_codes(spec.title, spec.code):
         for code, method in _variants(tok):
             rows = index.lookup_code(svcs, code)
             if mpc:
@@ -95,7 +93,7 @@ def match_specialty(
                 )
                 return result
 
-    title = _clean_title(spec.raw)
+    title = _clean_title(spec.title)
     if len(title) >= 4:
         choices = index.titles_for(tuple(svcs))
         best = process.extractOne(
@@ -181,11 +179,12 @@ class _Acc:
         ]
 
 
-def translate(index: Index, rec: ServiceRecord, top: int = 12) -> KeywordReport:
-    warnings = list(rec.warnings)
+def translate(index: Index, profile: Profile, top: int = 12) -> KeywordReport:
+    ctx = profile.context
+    warnings = [c.message for c in profile.conflicts]
     matches: list[SpecialtyMatch] = []
-    for spec in rec.specialties:
-        m = match_specialty(index, spec, rec.branch, rec.pay_grade)
+    for occ in profile.occupations:
+        m = match_specialty(index, occ.value, ctx and ctx.branch, ctx and ctx.pay_grade)
         if m.code:
             m.occupations = _occupations(index, m.svc, m.code, m.title or "")
             if not m.occupations:
@@ -194,7 +193,7 @@ def translate(index: Index, rec: ServiceRecord, top: int = 12) -> KeywordReport:
                     "(often a skill identifier rather than a primary specialty)."
                 )
         else:
-            warnings.append(f"Could not match specialty: '{spec.raw}'")
+            warnings.append(f"Could not match specialty: '{occ.value.title}'")
         matches.append(m)
 
     # Weight specialties by time in specialty (sqrt softens dominance of the longest one).
@@ -233,7 +232,7 @@ def translate(index: Index, rec: ServiceRecord, top: int = 12) -> KeywordReport:
     keywords = {c: cats[c].top(c, top) for c in CATEGORIES}
 
     # Merge rule-based keywords (pay grade, courses, awards, service time).
-    for kw in rule_keywords(rec):
+    for kw in rule_keywords(profile):
         bucket = keywords.setdefault(kw.category, [])
         existing = next((k for k in bucket if k.term.casefold() == kw.term.casefold()), None)
         if existing:
@@ -244,6 +243,6 @@ def translate(index: Index, rec: ServiceRecord, top: int = 12) -> KeywordReport:
     for c in keywords:
         keywords[c] = sorted(keywords[c], key=lambda k: k.score, reverse=True)[: max(top, 1) + 6]
 
-    if rec.specialties and not occ_w:
+    if profile.occupations and not occ_w:
         warnings.append("No civilian occupations found; keywords come from rules only.")
-    return KeywordReport(record=rec, matches=matches, keywords=keywords, warnings=warnings)
+    return KeywordReport(profile=profile, matches=matches, keywords=keywords, warnings=warnings)
