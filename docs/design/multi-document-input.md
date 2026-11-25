@@ -256,7 +256,3 @@ Each step ships on its own, with `docs/examples/*.md` regenerated and diffed.
 5. **DD-215 text.** Step 3 reads a DD-215 only as pre-extracted JSON. A text reader waits
    on a real (redacted) sample, because DoDI 1336.01 leaves the wording of a correction to
    each service.
-6. **DD-214 geometry.** The DD-214 layout reader (`extractors/dd214_layout.py`) is tested
-   on synthetic AUG 2009 forms only. Validation still needs more real documents: where the
-   labels sit inside their boxes, block 12's row spacing and column widths, how macOS and
-   other scanning apps lay out their OCR text layer, and the 2022 edition's geometry.
