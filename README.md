@@ -540,7 +540,10 @@ affects the output.
 ## Roadmap
 
 Planned components, in rough priority order (sources are in
-[`docs/data-sources.md`](docs/data-sources.md)):
+[`docs/data-sources.md`](docs/data-sources.md)). Multi-document input follows the
+accepted design in [`docs/design/multi-document-input.md`](docs/design/multi-document-input.md):
+every document becomes source-tagged facts, which one resolver merges into a profile
+for translation.
 
 1. **Validation on real documents.** Collect consented, redacted DD-214s; measure parse
    accuracy per block; add a layout-aware PDF extractor for the side-by-side blocks.
