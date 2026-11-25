@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pii-guard
+        name: pii-guard
+        entry: python scripts/pii_guard.py
+        language: python
+        pass_filenames: true
