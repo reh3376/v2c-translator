@@ -74,6 +74,11 @@ def test_detect_picks_the_extractor_or_refuses():
         detect("hello world")
 
 
+def test_json_input_reads_text_and_still_detects_the_document():
+    doc, _ = read(FIX / "army_2000.txt", json_input=True)
+    assert (doc.doc_type, doc.layout) == ("dd214", "2000")
+
+
 def test_dd214_sources_identify_the_file_and_block():
     path = FIX / "navy_2022.txt"
     doc, facts = read(path)

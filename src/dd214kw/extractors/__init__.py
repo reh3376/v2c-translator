@@ -8,6 +8,7 @@ from typing import Protocol
 from ..evidence import DocType, Document, Fact, SourceFactory
 from ..extract import ExtractionError, load_text
 from .dd214 import Dd214, Dd214Json
+from .dd215 import Dd215Json
 
 
 class Extractor(Protocol):
@@ -18,7 +19,7 @@ class Extractor(Protocol):
     def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]: ...
 
 
-EXTRACTORS: tuple[Extractor, ...] = (Dd214(), Dd214Json())
+EXTRACTORS: tuple[Extractor, ...] = (Dd214(), Dd214Json(), Dd215Json())
 
 
 def detect(text: str) -> Extractor:
@@ -32,12 +33,11 @@ def detect(text: str) -> Extractor:
 def read(path: Path, *, ocr: bool = False, json_input: bool = False) -> tuple[Document, list[Fact]]:
     """Read one file into the document it is and the facts it states.
 
-    `.json` files (or any file, with `json_input`) are read as text and not OCR'd;
-    `json_input` also skips detection and uses the DD-214 JSON extractor.
+    `.json` files (or any file, with `json_input`) are read as text and not OCR'd.
+    Either way, `detect()` picks the extractor.
     """
     if json_input or path.suffix.lower() == ".json":
         text = path.read_text()
     else:
         text = load_text(path, ocr=ocr)
-    extractor = Dd214Json() if json_input else detect(text)
-    return extractor.extract(text, SourceFactory.for_bytes(path.read_bytes()))
+    return detect(text).extract(text, SourceFactory.for_bytes(path.read_bytes()))

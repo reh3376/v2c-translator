@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.console import Console
 
 from . import __version__
-from .evidence import ServiceContext
+from .evidence import Document, Fact, ServiceContext
 from .extract import ExtractionError
 from .extractors import read
 from .index import DEFAULT_INDEX, Index, build_index, download
@@ -32,15 +32,21 @@ def _cmd_build(a: argparse.Namespace) -> int:
 
 
 def _cmd_translate(a: argparse.Namespace) -> int:
-    try:
-        doc, facts = read(a.file, ocr=a.ocr, json_input=a.json_input)
-    except ExtractionError as e:
-        err.print(f"[red]{e}[/]")
-        return 2
+    documents: list[Document] = []
+    facts: list[Fact] = []
+    for path in a.files:
+        try:
+            doc, doc_facts = read(path, ocr=a.ocr, json_input=a.json_input)
+        except ExtractionError as e:
+            err.print(f"[red]{path}: {e}[/]")
+            return 2
+        documents.append(doc)
+        facts += doc_facts
     if a.branch:
         facts = [replace(f, branch=a.branch) if isinstance(f, ServiceContext) else f for f in facts]
     report = translate(Index(a.index), resolve(facts), top=a.top)
-    report = replace(report, documents=[doc], warnings=[*doc.notes, *report.warnings])
+    notes = [n for d in documents for n in d.notes]
+    report = replace(report, documents=documents, warnings=[*notes, *report.warnings])
 
     match a.format:
         case "json":
@@ -90,8 +96,14 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--download", action="store_true", help="Fetch any missing source files")
     b.set_defaults(func=_cmd_build)
 
-    t = sub.add_parser("translate", help="Translate a DD-214 into civilian keywords")
-    t.add_argument("file", type=Path, help="DD-214 as .pdf, .txt, image, or .json (pre-extracted)")
+    t = sub.add_parser("translate", help="Translate one person's documents into civilian keywords")
+    t.add_argument(
+        "files",
+        nargs="+",
+        type=Path,
+        metavar="FILE",
+        help="One person's DD-214s (.pdf, .txt, image, or pre-extracted .json) and DD-215s (.json)",
+    )
     t.add_argument("-f", "--format", choices=["rich", "md", "json", "ats"], default="rich")
     t.add_argument("-o", "--output", type=Path)
     t.add_argument("--top", type=int, default=12, help="Keywords per category")

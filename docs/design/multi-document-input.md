@@ -1,6 +1,6 @@
 # Design: multi-document input
 
-Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · steps 1-2: in PR #1
+Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · steps 1-2: merged (PR #1) · step 3: in progress
 
 ## Problem
 
@@ -235,3 +235,6 @@ Each step ships on its own, with `docs/examples/*.md` regenerated and diffed.
    value needs the evaluation harness to tune.
 4. **Package name.** `dd214kw` stops describing the package after step 3. Renaming to
    `v2c` would fit the "migrate callers, then delete" step 2.
+5. **DD-215 text.** Step 3 reads a DD-215 only as pre-extracted JSON. A text reader waits
+   on a real (redacted) sample, because DoDI 1336.01 leaves the wording of a correction to
+   each service.
