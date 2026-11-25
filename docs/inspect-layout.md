@@ -15,10 +15,10 @@ them.
 1. In the repository's root folder, run:
 
 	```bash
-	git fetch && git checkout feat/dd214-layout-v2
+	git checkout main && git pull
 	```
 
-	Expected: Git says it switched to branch `feat/dd214-layout-v2`.
+	Expected: Git says it is on branch `main`, and the pull ends with no error.
 
 2. Run:
 
