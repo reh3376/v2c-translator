@@ -19,7 +19,7 @@ from dd214kw.cli import main
 from dd214kw.evidence import SourceFactory
 from dd214kw.extract import Content, load_text
 from dd214kw.extractors import Dd214, read
-from dd214kw.extractors.dd214_layout import NOT_READ
+from dd214kw.extractors.dd214_layout import NOT_READ, Status, read_form
 from dd214kw.index import DEFAULT_INDEX
 from dd214kw.models import Duration
 from dd214kw.resolve import resolve
@@ -150,15 +150,39 @@ def test_unreadable_cells_are_left_out_not_guessed(noisy_pdf):
     "variant", ["clean_pdf", "noisy_pdf", pytest.param("ocr_pdf", marks=needs_tesseract)]
 )
 def test_personal_blocks_never_reach_facts_or_report(variant, request, capsys):
-    pdf = request.getfixturevalue(variant)
+    assert _leaked(request.getfixturevalue(variant), capsys) == []
+
+
+@pytest.mark.xfail(strict=True, reason="a box with no bounding label grows over personal data")
+@pytest.mark.parametrize(
+    ("omit", "refused"),
+    [
+        (("7a", "7b"), {"4a", "4b"}),  # 4a and 4b would grow down over the place of entry
+        (("5",), {"4b"}),  # 4b would grow right over the date of birth
+        (("3",), {"2"}),  # 2 would grow right over the SSN
+        (("15a", "15b", "15c", "16", "17", "18"), {"13", "14"}),  # down over the remarks
+    ],
+)
+def test_block_whose_bounding_label_is_lost_is_refused_not_grown(omit, refused, tmp_path, capsys):
+    pdf = form.write_text_pdf(tmp_path / "dd214.pdf", omit=omit)
+    assert _leaked(pdf, capsys) == []
+    layout = read_form(load_text(pdf).words).layout
+    assert {r.block for r in layout.regions if r.status is Status.REFUSED} == refused
+    notes = read(pdf)[0].notes
+    assert all(any(n.startswith(f"Block {b} ") for n in notes) for b in refused)
+
+
+def _leaked(pdf: Path, capsys) -> list[str]:
+    """The fake personal values that reach the reader's text, the facts or the report."""
     doc, facts = read(pdf)
-    outputs = [json.dumps([asdict(doc), *map(asdict, facts), asdict(resolve(facts))], default=str)]
+    outputs = [
+        read_form(load_text(pdf).words).text or "",
+        json.dumps([asdict(doc), *map(asdict, facts), asdict(resolve(facts))], default=str),
+    ]
     if DEFAULT_INDEX.exists():
         assert main(["translate", str(pdf), "-f", "json"]) == 0
         outputs.append(capsys.readouterr().out)
-    for out in outputs:
-        leaked = [v for v in form.SENSITIVE.values() if v.upper() in out.upper()]
-        assert leaked == []
+    return [v for v in form.SENSITIVE.values() for out in outputs if v.upper() in out.upper()]
 
 
 def test_page_set_out_one_block_per_line_reads_as_before(tmp_path):

@@ -11,6 +11,7 @@ from __future__ import annotations
 import random
 import shutil
 import subprocess
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -255,7 +256,7 @@ def _wrap(text: str, font: str, size: float, width: float) -> list[str]:
     return simpleSplit(text, font, size, width)
 
 
-def _texts(*, noisy: bool, title: str) -> list[_Text]:
+def _texts(*, noisy: bool, title: str, omit: Collection[str]) -> list[_Text]:
     from reportlab.pdfbase.pdfmetrics import stringWidth
 
     out = [_Text(44, 160, title, "Helvetica-Bold", 10)]
@@ -270,7 +271,8 @@ def _texts(*, noisy: bool, title: str) -> list[_Text]:
             lines = _wrap(label, LABEL_FONT, LABEL_SIZE, COLUMNS[0][1] - box.x0 - 4)
         y = box.top + 7
         for line in lines:
-            out.append(_Text(y, box.x0 + 2, line, LABEL_FONT, LABEL_SIZE))
+            if box.label.split(".")[0] not in omit:
+                out.append(_Text(y, box.x0 + 2, line, LABEL_FONT, LABEL_SIZE))
             y += 7
         y += 4
         for line in _wrap(box.value, VALUE_FONT, VALUE_SIZE, box.x1 - box.x0 - 8):
@@ -297,14 +299,20 @@ def _texts(*, noisy: bool, title: str) -> list[_Text]:
 
 
 def write_text_pdf(
-    path: Path, *, noisy: bool = False, title: str = TITLE, field: str | None = None
+    path: Path,
+    *,
+    noisy: bool = False,
+    title: str = TITLE,
+    field: str | None = None,
+    omit: Collection[str] = (),
 ) -> Path:
     """The form as a PDF with a text layer, drawn in row-major order across the page.
 
     `noisy` draws what a scan's OCR layer holds: confusions (O for 0, l for 1, stray
     punctuation, split and misread label words), two cells no repair can undo, and one text
     run that crosses from block 11 into block 12. `field` adds a fillable form field that
-    holds that value.
+    holds that value. `omit` leaves out the printed labels of those blocks ("5", "7a"), the
+    way OCR loses a label, and keeps their values.
     """
     from reportlab.pdfgen.canvas import Canvas
 
@@ -319,7 +327,7 @@ def write_text_pdf(
         c.line(x0, PAGE_H - 182, x0, PAGE_H - (GRID_TOP + len(RECORD) * ROW_PITCH))
     if field:
         c.acroForm.textfield(name="remarks", value=field, x=40, y=PAGE_H - 550, borderWidth=0)
-    for t in sorted(_texts(noisy=noisy, title=title), key=lambda t: (t.top, t.x)):
+    for t in sorted(_texts(noisy=noisy, title=title, omit=omit), key=lambda t: (t.top, t.x)):
         c.setFont(t.font, t.size)
         if t.then:
             _draw_run(c, t)
