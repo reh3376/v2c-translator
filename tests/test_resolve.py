@@ -145,9 +145,9 @@ def test_civilian_equivalents_by_onet_union_sources():
     a, b = src("vmet", "a"), src("vmet", "b")
     profile = resolve(
         [
-            CivilianEquivalent("53-7065.00", "Stockers and Order Fillers", a),
-            CivilianEquivalent("11-3071.00", "Transportation Managers", a),
-            CivilianEquivalent("53-7065.00", "Stock Clerks", b),
+            CivilianEquivalent("53-7065.00", "Stockers and Order Fillers", "92Y", a),
+            CivilianEquivalent("11-3071.00", "Transportation Managers", "92Y", a),
+            CivilianEquivalent("53-7065.00", "Stock Clerks", "92Y", b),
         ]
     )
     assert [(c.value.onet, c.sources) for c in profile.civilian_equivalents] == [
@@ -272,7 +272,7 @@ def test_every_fact_kind_reaches_the_profile():
     one_of_each = [
         ctx("Army"),
         OccupationHeld("11B", "INFANTRYMAN", 12, None, None, src()),
-        CivilianEquivalent("33-9032.00", "Security Guards", src("vmet")),
+        CivilianEquivalent("33-9032.00", "Security Guards", "11B", src("vmet")),
         TrainingCompleted("BASIC LEADER COURSE", 4.0, None, None, None, src()),
         Award("ARMY ACHIEVEMENT MEDAL", 1, src()),
         ServiceTime("net_active", Duration(1, 0, 0), END, src()),

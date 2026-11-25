@@ -130,6 +130,7 @@ class OccupationHeld:
 class CivilianEquivalent:
     onet: str
     title: str
+    for_code: str | None  # the military code the document lists it under
     source: Source
 
 

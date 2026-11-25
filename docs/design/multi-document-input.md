@@ -97,7 +97,8 @@ class ServiceContext:      branch: str; component: str | None; pay_grade: str | 
 class OccupationHeld:      code: str | None; title: str; months: int | None
                            start: date | None; end: date | None; source: Source
 @dataclass(frozen=True, slots=True)
-class CivilianEquivalent:  onet: str; title: str; source: Source          # VMET
+class CivilianEquivalent:  onet: str; title: str                          # VMET
+                           for_code: str | None; source: Source           # the code it is listed under
 @dataclass(frozen=True, slots=True)
 class TrainingCompleted:   title: str; weeks: float | None; completed: date | None
                            ace_id: str | None; description: str | None; source: Source
@@ -161,7 +162,7 @@ def resolve(facts: Iterable[Fact]) -> Profile: ...
 |---|---|---|---|
 | `ServiceContext` | — | keep latest by `as_of` / `issued` | report a branch disagreement as a `Conflict` |
 | `OccupationHeld` | normalized code, else normalized title | union sources; months = max | — |
-| `CivilianEquivalent` | `onet` | union sources | — |
+| `CivilianEquivalent` | (normalized `for_code`, `onet`) | union sources | — |
 | `TrainingCompleted` | `ace_id`, else (normalized title, year) | union; prefer the fact with `ace_id`/`description` | — |
 | `Award` | normalized name | count = max | — |
 | `ServiceTime` | (kind, `period_end`) | DD-215 > DD-214 for the same period | sum across different periods |
