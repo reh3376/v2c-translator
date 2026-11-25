@@ -156,7 +156,9 @@ class Profile:
 def resolve(facts: Iterable[Fact]) -> Profile: ...
 ```
 
-### Resolution policy (all in `resolve.py`)
+### Resolution policy
+
+Document-level deduplication lives in `resolve.py`:
 
 | Fact | Identity key | On duplicate | On conflict |
 |---|---|---|---|
@@ -168,6 +170,18 @@ def resolve(facts: Iterable[Fact]) -> Profile: ...
 | `ServiceTime` | (kind, `period_end`) | DD-215 > DD-214 for the same period | sum across different periods |
 | `Accomplishment`, `SkillClaim` | normalized text | union sources | — |
 
+Cross-document occupation identity lives in `translate.py`. Whether "11B30 INFANTRYMAN"
+on a DD-214 and "11B" on a VMET are one job is a crosswalk question, and the crosswalk
+lives in `translate`. After matching, `translate` merges the `SpecialtyMatch`es that
+resolve to the same (svc, code):
+
+- It keeps the first specialty in profile order, with months = max across the group.
+- It collects the VMET links of every specialty in the group.
+- The order of the matches does not otherwise change.
+
+One document can also list one code more than once. The VMET lists each stint in a job
+as its own entry, so its extractor sums the months of entries for one code.
+
 ### Downstream changes
 
 ```python
@@ -177,7 +191,9 @@ def rule_keywords(profile: Profile) -> list[Keyword]
 
 - **Occupation weighting** gains one source: `CivilianEquivalent` facts enter the
   existing link merge as `"vmet"` with base weight 0.9 (official, but per-person rather
-  than per-code). They need no new code path; they're another row in `LINK_WEIGHTS`.
+  than per-code). A specialty takes the links whose `for_code` is its matched crosswalk
+  code or its own code. Fan-out decay, the 55-xxxx analog swap and title relevance apply
+  to them as to any other supplemental source.
 - **Corroboration** comes for free: an occupation held on three documents carries three
   sources, which can lift its specialty weight.
 - **`Keyword.sources`** names the document: "DD-214 block 14 · JST" instead of a bare
@@ -215,7 +231,7 @@ Each step ships on its own, with `docs/examples/*.md` regenerated and diffed.
    handling. Test: a DD-214 plus DD-215 pair, and two DD-214s for separate periods.
 4. **VMET extractor.** Structured, highest value: it brings its own O*NET links. Test
    that a VMET-only occupation shows up; a VMET plus DD-214 duplicate collapses to one
-   occupation with two sources.
+   match.
 5. **JST extractor.** Courses with ACE IDs and descriptions, and occupations with dates.
    Training-to-skill extraction from ACE descriptions comes later, behind the ACE API
    key.

@@ -1,21 +1,38 @@
 """VMET (DD Form 2586): its occupations, O*NET links and courses, alone and with a DD-214."""
 
+import json
 from datetime import date
 from pathlib import Path
 
+import pytest
+
+from dd214kw.cli import main
 from dd214kw.extractors import detect, read
 from dd214kw.extractors.dd214 import Dd214, Dd214Json
 from dd214kw.extractors.dd215 import Dd215Json
 from dd214kw.extractors.vmet import Vmet
+from dd214kw.index import DEFAULT_INDEX
 from dd214kw.resolve import Profile, resolve
 
 FIX = Path(__file__).parent / "fixtures"
 VMET = FIX / "army_vmet.txt"  # the soldier of army_2000.txt; 92Y's list breaks across a page
 ARMY = FIX / "army_2000.txt"
+needs_index = pytest.mark.skipif(not DEFAULT_INDEX.exists(), reason="index not built")
 
 
 def _resolve(*paths: Path) -> Profile:
     return resolve([f for p in paths for f in read(p)[1]])
+
+
+def _translate_json(capsys, *paths: Path) -> dict:
+    assert main(["translate", *map(str, paths), "-f", "json"]) == 0
+    return json.loads(capsys.readouterr().out)
+
+
+def _matches(report: dict) -> dict[str, dict]:
+    codes = [m["code"] for m in report["matches"]]
+    assert len(codes) == len(set(codes)), codes  # one match per code
+    return {m["code"]: m for m in report["matches"]}
 
 
 def test_detect_picks_each_fixture_s_extractor():
@@ -92,3 +109,33 @@ def test_a_vmet_with_no_experience_entries_says_so(tmp_path):
     doc, facts = read(path)
     assert len(doc.notes) == 1
     assert not resolve(facts).occupations
+
+
+# --------------------------------------------------------------------------- reports
+
+
+@needs_index
+def test_a_vmet_alone_translates_with_its_own_onet_links(capsys):
+    report = _translate_json(capsys, VMET)
+    matches = _matches(report)
+
+    assert matches.keys() == {"11B", "92Y"}
+    assert matches["11B"]["specialty"]["months"] == 36 + 31  # both 11B entries
+    # 43-5061.00 is on the VMET's 92Y list and not in the crosswalk for 92Y.
+    clerks = next(o for o in matches["92Y"]["occupations"] if o["onet"] == "43-5061.00")
+    assert "vmet" in clerks["sources"]
+    assert not any(w.startswith("Could not match") for w in report["warnings"])
+
+
+@needs_index
+def test_a_specialty_on_a_dd214_and_a_vmet_is_one_match(capsys):
+    report = _translate_json(capsys, ARMY, VMET)
+    matches = _matches(report)
+
+    assert matches.keys() == {"11B", "92Y"}
+    assert matches["11B"]["specialty"]["months"] == max(76, 36 + 31)  # DD-214: 6 YRS 4 MOS
+    assert matches["92Y"]["specialty"]["months"] == max(20, 22)  # VMET: JUN 2020 - MAR 2022
+    assert [d["doc_type"] for d in report["documents"]] == ["dd214", "vmet"]
+    # The DD-214's separation date (2022-06-01) is later than the VMET's date of information.
+    context = report["profile"]["context"]
+    assert (context["pay_grade"], context["rank"]) == ("E6", "SSG")
