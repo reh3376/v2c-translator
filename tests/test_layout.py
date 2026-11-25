@@ -5,6 +5,7 @@ text in row-major order across the page so blocks 11/12 and 13/14 interleave the
 scanned form's OCR layer does. Expected values come from what the generator draws.
 """
 
+import importlib.util
 import json
 from dataclasses import asdict
 from datetime import date
@@ -40,6 +41,10 @@ NET_ACTIVE, FOREIGN = Duration(12, 3, 15), Duration(1, 4, 11)
 needs_tesseract = pytest.mark.skipif(
     not form.tools_available(), reason="needs the tesseract and pdftoppm binaries"
 )
+needs_ocr_extra = pytest.mark.skipif(
+    not (importlib.util.find_spec("pytesseract") and importlib.util.find_spec("pdf2image")),
+    reason="needs the 'ocr' extra: uv sync --extra ocr",
+)
 
 
 @pytest.fixture(scope="module")
@@ -68,6 +73,12 @@ def scan_png(pdfs, clean_pdf):
 def ocr_pdf(pdfs, scan_png):
     """The scan with tesseract's text layer: real OCR coordinates and real OCR noise."""
     return form.write_ocr_pdf(scan_png, pdfs / "ocr.pdf")
+
+
+@pytest.fixture(scope="module")
+def image_pdf(pdfs, scan_png):
+    """The scan alone, with no text layer: `--ocr` has to read it."""
+    return form.write_image_pdf(scan_png, pdfs / "image.pdf")
 
 
 def _line_order(pdf: Path):
@@ -185,3 +196,18 @@ def test_page_without_block_labels_is_read_in_line_order_with_a_note(tmp_path):
     doc, facts = read(pdf)
     assert NOT_READ in doc.notes
     assert [title for title, _ in _occupations(resolve(facts))] == ["11B10 INFANTRYMAN"]
+
+
+@needs_ocr_extra
+def test_scan_without_text_layer_is_read_by_position_with_ocr(image_pdf):
+    doc, facts = read(image_pdf, ocr=True)
+    profile = resolve(facts)
+    assert (profile.context.branch, profile.context.pay_grade) == ("Army", "E6")
+    assert _occupations(profile) == SPECIALTIES
+    assert profile.service_time["net_active"] == NET_ACTIVE
+    assert [(a.value.name, a.value.count) for a in profile.awards] == AWARDS
+    # OCR may misread a cell; the reader then leaves it out with a note, never a guess.
+    if "foreign" in profile.service_time:
+        assert profile.service_time["foreign"] == FOREIGN
+    else:
+        assert any("12f" in n for n in doc.notes)

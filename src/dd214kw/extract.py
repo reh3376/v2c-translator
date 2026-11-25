@@ -77,7 +77,23 @@ def _pdf_content(path: Path, *, ocr: bool) -> Content:
         from pdf2image import convert_from_path
     except ImportError as e:  # pragma: no cover - optional dependency
         raise ExtractionError("OCR needs the 'ocr' extra: uv sync --extra ocr") from e
-    return _ocr_images(convert_from_path(str(path), dpi=300))
+    return _ocr_images(convert_from_path(str(path), dpi=_scan_dpi(reader)))
+
+
+def _scan_dpi(reader) -> int:
+    """The resolution the first page was scanned at, up to 300 dpi. Rendering a 200 dpi
+    scan at 300 dpi resamples it, and tesseract then misreads more of it."""
+    page = reader.pages[0]
+    images = [
+        x.get_object()
+        for x in (page["/Resources"].get("/XObject") or {}).values()
+        if x.get_object().get("/Subtype") == "/Image"
+    ]
+    if not images:
+        return 300
+    pixels = max(max(int(x["/Width"]), int(x["/Height"])) for x in images)
+    inches = max(float(page.mediabox.width), float(page.mediabox.height)) / 72
+    return max(150, min(300, round(pixels / inches)))
 
 
 def _pdf_words(path: Path) -> tuple[Word, ...]:
