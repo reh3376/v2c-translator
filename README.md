@@ -15,8 +15,8 @@ data source, it came from.
 
 > **Status: v0.1 (alpha).** It works end to end on synthetic DD-214s for the Army, Navy,
 > Air Force and Marine Corps, in both the 2000 and 2022 form layouts. It merges several
-> DD-214s for separate periods, and DD-215 corrections given as JSON, into one report. It
-> has not yet been validated against a corpus of real DD-214s. See
+> DD-214s for separate periods, DD-215 corrections given as JSON, and a VMET into one
+> report. It has not yet been validated against a corpus of real DD-214s or VMETs. See
 > [Known limitations](#known-limitations) and [Roadmap](#roadmap).
 
 ---
