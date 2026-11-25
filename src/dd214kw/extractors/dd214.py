@@ -209,6 +209,21 @@ def _json_duration(v: object) -> Duration | None:
     return parse_duration(str(v)) if v else None
 
 
+def _json_object(text: str) -> dict[str, Any] | None:
+    """`text` as a JSON object; None if it is not one."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _json_form(data: Mapping[str, Any]) -> str | None:
+    """The `form` key, normalized: "DD-215", "DD Form 215" and "dd215" are all "DD215"."""
+    form = data.get("form")
+    return re.sub(r"FORM|[^A-Z0-9]", "", str(form).upper()) if form else None
+
+
 def _json_date(data: Mapping[str, Any], key: str) -> date | None:
     """The date under `key`, as YYYY-MM-DD or YYYYMMDD; None if absent."""
     if not (v := data.get(key)):
@@ -244,17 +259,17 @@ class Dd214Json:
     Keys: branch, component, grade, pay_grade, specialty, decorations, education,
     net_active, prior_active, foreign_service, sea_service. List or string values.
     separation_date (YYYY-MM-DD or YYYYMMDD) names the period, so DD-214s for separate
-    periods add up.
+    periods add up and a DD-215 for that date corrects this one. An optional `form` key
+    must name the DD-214.
     """
 
     doc_type: DocType = "dd214"
 
     def sniff(self, text: str) -> float:
-        try:
-            data = json.loads(text)
-        except ValueError:
+        data = _json_object(text)
+        if data is None or _json_form(data) not in (None, "DD214"):
             return 0.0
-        return 1.0 if isinstance(data, dict) and JSON_KEYS & data.keys() else 0.0
+        return 1.0 if JSON_KEYS & data.keys() else 0.0
 
     def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]:
         data = json.loads(text)

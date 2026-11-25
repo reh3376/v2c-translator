@@ -8,6 +8,7 @@ from typing import Protocol
 from ..evidence import DocType, Document, Fact, SourceFactory
 from ..extract import ExtractionError, load_text
 from .dd214 import Dd214, Dd214Json
+from .dd215 import Dd215Json
 
 
 class Extractor(Protocol):
@@ -18,7 +19,7 @@ class Extractor(Protocol):
     def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]: ...
 
 
-EXTRACTORS: tuple[Extractor, ...] = (Dd214(), Dd214Json())
+EXTRACTORS: tuple[Extractor, ...] = (Dd214(), Dd214Json(), Dd215Json())
 
 
 def detect(text: str) -> Extractor:
