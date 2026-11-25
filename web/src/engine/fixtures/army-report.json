@@ -1,0 +1,1936 @@
+{
+  "profile": {
+    "context": {
+      "branch": "Army",
+      "component": null,
+      "pay_grade": "E6",
+      "rank": "SSG",
+      "as_of": "2022-06-01",
+      "source": {
+        "doc_type": "dd214",
+        "doc_id": "6a721b8b9d31",
+        "locator": "block 2",
+        "issued": null,
+        "confidence": 1.0
+      }
+    },
+    "occupations": [
+      {
+        "value": {
+          "code": null,
+          "title": "11B30 INFANTRYMAN",
+          "months": 76,
+          "start": null,
+          "end": null,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 11",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 11",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "code": null,
+          "title": "92Y20 UNIT SUPPLY SPECIALIST",
+          "months": 20,
+          "start": null,
+          "end": null,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 11",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 11",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "code": "92Y",
+          "title": "Unit Supply Specialist",
+          "months": 22,
+          "start": "2020-06-01",
+          "end": "2022-03-01",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "code": "11B",
+          "title": "Infantryman",
+          "months": 67,
+          "start": "2014-10-01",
+          "end": "2020-05-01",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      }
+    ],
+    "civilian_equivalents": [
+      {
+        "value": {
+          "onet": "53-7065.00",
+          "title": "Stockers and Order Fillers",
+          "for_code": "92Y",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "onet": "43-5071.00",
+          "title": "Shipping, Receiving, and Inventory Clerks",
+          "for_code": "92Y",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "onet": "43-5061.00",
+          "title": "Production, Planning, and Expediting Clerks",
+          "for_code": "92Y",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "onet": "11-3071.00",
+          "title": "Transportation, Storage, and Distribution Managers",
+          "for_code": "92Y",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 92Y",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "onet": "55-3016.00",
+          "title": "Infantry",
+          "for_code": "11B",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "onet": "33-9032.00",
+          "title": "Security Guards",
+          "for_code": "11B",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "onet": "33-1091.00",
+          "title": "First-Line Supervisors of Security Workers",
+          "for_code": "11B",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "experience: 11B",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      }
+    ],
+    "training": [
+      {
+        "value": {
+          "title": "BASIC LEADER COURSE",
+          "weeks": 4.0,
+          "completed": "2017-01-01",
+          "ace_id": null,
+          "description": null,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          },
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "training: 600-C44",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "title": "ADVANCED LEADER COURSE",
+          "weeks": 6.428571428571429,
+          "completed": "2019-03-01",
+          "ace_id": null,
+          "description": "Prepares squad leaders to lead, train and employ an infantry squad; covers troop-leading procedures, squad tactics and training management.",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "training: 071-11B30-C45",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          },
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "training: 071-11B30-C45",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "title": "COMBAT LIFESAVER COURSE",
+          "weeks": 1.0,
+          "completed": "2015-01-01",
+          "ace_id": null,
+          "description": null,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "title": "AIR ASSAULT COURSE",
+          "weeks": 2.0,
+          "completed": "2016-01-01",
+          "ace_id": null,
+          "description": null,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "title": "UNIT SUPPLY SPECIALIST COURSE",
+          "weeks": 9.0,
+          "completed": "2020-08-01",
+          "ace_id": "AR-1405-0921",
+          "description": "Upon completion of the course, the student will be able to receive, store and issue supplies; maintain hand receipts and property records; and operate an automated supply system. Credit recommendation: in the lower-division baccalaureate/associate degree category, 3 semester hours in supply management. (7/18)(6/20).",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "training: 552-92Y10",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          },
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "training: 552-92Y10",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "title": "HAZMAT CERTIFICATION COURSE",
+          "weeks": 1.0,
+          "completed": "2021-01-01",
+          "ace_id": null,
+          "description": null,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 14",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "title": "COMBAT LIFESAVER COURSE - IET",
+          "weeks": null,
+          "completed": "2014-11-01",
+          "ace_id": null,
+          "description": "Trains non-medical soldiers to provide enhanced first aid: hemorrhage control, airway management and casualty evacuation.",
+          "source": {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "training: 081F31CLCIET",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "vmet",
+            "doc_id": "0e42bb8c2198",
+            "locator": "training: 081F31CLCIET",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "title": "MASTER FITNESS TRAINER COURSE",
+          "weeks": 2.0,
+          "completed": "2021-01-01",
+          "ace_id": null,
+          "description": null,
+          "source": {
+            "doc_type": "dd215",
+            "doc_id": "4b1fc89388e1",
+            "locator": "education",
+            "issued": "2023-03-15",
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd215",
+            "doc_id": "4b1fc89388e1",
+            "locator": "education",
+            "issued": "2023-03-15",
+            "confidence": 1.0
+          }
+        ]
+      }
+    ],
+    "awards": [
+      {
+        "value": {
+          "name": "ARMY COMMENDATION MEDAL",
+          "count": 3,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          },
+          {
+            "doc_type": "dd215",
+            "doc_id": "4b1fc89388e1",
+            "locator": "decorations",
+            "issued": "2023-03-15",
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "ARMY ACHIEVEMENT MEDAL",
+          "count": 3,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "ARMY GOOD CONDUCT MEDAL",
+          "count": 2,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "NATIONAL DEFENSE SERVICE MEDAL",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "AFGHANISTAN CAMPAIGN MEDAL W/ CAMPAIGN STAR",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "GLOBAL WAR ON TERRORISM SERVICE MEDAL",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "NCO PROFESSIONAL DEVELOPMENT RIBBON W/ NUMERAL 2",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "ARMY SERVICE RIBBON",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "OVERSEAS SERVICE RIBBON",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "NATO MEDAL",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "COMBAT INFANTRYMAN BADGE",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "AIR ASSAULT BADGE",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      },
+      {
+        "value": {
+          "name": "EXPERT MARKSMANSHIP QUALIFICATION BADGE WITH RIFLE BAR",
+          "count": 1,
+          "source": {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        },
+        "sources": [
+          {
+            "doc_type": "dd214",
+            "doc_id": "6a721b8b9d31",
+            "locator": "block 13",
+            "issued": null,
+            "confidence": 1.0
+          }
+        ]
+      }
+    ],
+    "service_time": {
+      "net_active": {
+        "years": 9,
+        "months": 1,
+        "days": 0
+      },
+      "prior_active": {
+        "years": 0,
+        "months": 0,
+        "days": 0
+      },
+      "foreign": {
+        "years": 1,
+        "months": 2,
+        "days": 11
+      },
+      "sea": {
+        "years": 0,
+        "months": 0,
+        "days": 0
+      }
+    },
+    "accomplishments": [],
+    "skill_claims": [],
+    "conflicts": []
+  },
+  "documents": [
+    {
+      "doc_type": "dd214",
+      "doc_id": "6a721b8b9d31",
+      "layout": "2000",
+      "notes": []
+    },
+    {
+      "doc_type": "vmet",
+      "doc_id": "0e42bb8c2198",
+      "layout": "2010",
+      "notes": []
+    },
+    {
+      "doc_type": "dd215",
+      "doc_id": "4b1fc89388e1",
+      "layout": "json",
+      "notes": []
+    }
+  ],
+  "matches": [
+    {
+      "specialty": {
+        "code": null,
+        "title": "11B30 INFANTRYMAN",
+        "months": 76,
+        "start": null,
+        "end": null,
+        "source": {
+          "doc_type": "dd214",
+          "doc_id": "6a721b8b9d31",
+          "locator": "block 11",
+          "issued": null,
+          "confidence": 1.0
+        }
+      },
+      "svc": "A",
+      "code": "11B",
+      "title": "Infantryman",
+      "method": "code-variant",
+      "occupations": [
+        {
+          "onet": "33-9032.00",
+          "title": "Security Guards",
+          "weight": 0.923,
+          "sources": [
+            "dmdc:analog-of-55-3016.00",
+            "vmet",
+            "vmet:analog-of-55-3016.00"
+          ]
+        },
+        {
+          "onet": "33-1091.00",
+          "title": "First-Line Supervisors of Security Workers",
+          "weight": 0.681,
+          "sources": [
+            "vmet"
+          ]
+        },
+        {
+          "onet": "25-1194.00",
+          "title": "Career/Technical Education Teachers, Postsecondary",
+          "weight": 0.538,
+          "sources": [
+            "cool"
+          ]
+        },
+        {
+          "onet": "47-1011.00",
+          "title": "First-Line Supervisors of Construction Trades and Extraction Workers",
+          "weight": 0.527,
+          "sources": [
+            "cool"
+          ]
+        },
+        {
+          "onet": "43-1011.00",
+          "title": "First-Line Supervisors of Office and Administrative Support Workers",
+          "weight": 0.522,
+          "sources": [
+            "cool"
+          ]
+        },
+        {
+          "onet": "11-9161.00",
+          "title": "Emergency Management Directors",
+          "weight": 0.522,
+          "sources": [
+            "dmdc:analog-of-55-3016.00",
+            "vmet:analog-of-55-3016.00"
+          ]
+        },
+        {
+          "onet": "33-3051.00",
+          "title": "Police and Sheriff's Patrol Officers",
+          "weight": 0.496,
+          "sources": [
+            "dmdc:analog-of-55-3016.00",
+            "vmet:analog-of-55-3016.00"
+          ]
+        },
+        {
+          "onet": "33-3012.00",
+          "title": "Correctional Officers and Jailers",
+          "weight": 0.49,
+          "sources": [
+            "dmdc:analog-of-55-3016.00",
+            "vmet:analog-of-55-3016.00"
+          ]
+        }
+      ]
+    },
+    {
+      "specialty": {
+        "code": null,
+        "title": "92Y20 UNIT SUPPLY SPECIALIST",
+        "months": 22,
+        "start": null,
+        "end": null,
+        "source": {
+          "doc_type": "dd214",
+          "doc_id": "6a721b8b9d31",
+          "locator": "block 11",
+          "issued": null,
+          "confidence": 1.0
+        }
+      },
+      "svc": "A",
+      "code": "92Y",
+      "title": "Unit Supply Specialist",
+      "method": "code-variant",
+      "occupations": [
+        {
+          "onet": "53-7065.00",
+          "title": "Stockers and Order Fillers",
+          "weight": 1.15,
+          "sources": [
+            "dmdc",
+            "vmet"
+          ]
+        },
+        {
+          "onet": "11-3071.00",
+          "title": "Transportation, Storage, and Distribution Managers",
+          "weight": 0.814,
+          "sources": [
+            "citm",
+            "vmet"
+          ]
+        },
+        {
+          "onet": "43-5061.00",
+          "title": "Production, Planning, and Expediting Clerks",
+          "weight": 0.721,
+          "sources": [
+            "vmet"
+          ]
+        },
+        {
+          "onet": "43-5071.00",
+          "title": "Shipping, Receiving, and Inventory Clerks",
+          "weight": 0.716,
+          "sources": [
+            "vmet"
+          ]
+        },
+        {
+          "onet": "41-2021.00",
+          "title": "Counter and Rental Clerks",
+          "weight": 0.401,
+          "sources": [
+            "citm"
+          ]
+        }
+      ]
+    }
+  ],
+  "keywords": {
+    "job_titles": [
+      {
+        "term": "Security Guards",
+        "category": "job_titles",
+        "score": 1.0,
+        "sources": [
+          "O*NET 33-9032.00"
+        ]
+      },
+      {
+        "term": "Safety and Security Officer",
+        "category": "job_titles",
+        "score": 0.8,
+        "sources": [
+          "Security Guards"
+        ]
+      },
+      {
+        "term": "Security Agent",
+        "category": "job_titles",
+        "score": 0.8,
+        "sources": [
+          "Security Guards"
+        ]
+      },
+      {
+        "term": "Security Guard",
+        "category": "job_titles",
+        "score": 0.8,
+        "sources": [
+          "Security Guards"
+        ]
+      },
+      {
+        "term": "Security Officer",
+        "category": "job_titles",
+        "score": 0.8,
+        "sources": [
+          "Security Guards"
+        ]
+      },
+      {
+        "term": "First-Line Supervisors of Security Workers",
+        "category": "job_titles",
+        "score": 0.738,
+        "sources": [
+          "O*NET 33-1091.00"
+        ]
+      },
+      {
+        "term": "Stockers and Order Fillers",
+        "category": "job_titles",
+        "score": 0.67,
+        "sources": [
+          "O*NET 53-7065.00"
+        ]
+      },
+      {
+        "term": "Security Director",
+        "category": "job_titles",
+        "score": 0.59,
+        "sources": [
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Security Shift Supervisor",
+        "category": "job_titles",
+        "score": 0.59,
+        "sources": [
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Security Supervisor",
+        "category": "job_titles",
+        "score": 0.59,
+        "sources": [
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Shift Supervisor",
+        "category": "job_titles",
+        "score": 0.59,
+        "sources": [
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Career/Technical Education Teachers, Postsecondary",
+        "category": "job_titles",
+        "score": 0.583,
+        "sources": [
+          "O*NET 25-1194.00"
+        ]
+      }
+    ],
+    "skills": [
+      {
+        "term": "Management of Personnel Resources",
+        "category": "skills",
+        "score": 1.0,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "First-Line Supervisors of Construction Trades and Extraction Workers"
+        ]
+      },
+      {
+        "term": "Negotiation",
+        "category": "skills",
+        "score": 0.987,
+        "sources": [
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Transportation, Storage, and Distribution Managers",
+          "Emergency Management Directors"
+        ]
+      },
+      {
+        "term": "Persuasion",
+        "category": "skills",
+        "score": 0.928,
+        "sources": [
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Inventory Management",
+        "category": "skills",
+        "score": 0.8999999999999999,
+        "sources": [
+          "course: Unit Supply Specialist Course"
+        ]
+      },
+      {
+        "term": "Supply Chain Operations",
+        "category": "skills",
+        "score": 0.8999999999999999,
+        "sources": [
+          "course: Unit Supply Specialist Course"
+        ]
+      },
+      {
+        "term": "Property Accountability",
+        "category": "skills",
+        "score": 0.8999999999999999,
+        "sources": [
+          "course: Unit Supply Specialist Course"
+        ]
+      },
+      {
+        "term": "Instructing",
+        "category": "skills",
+        "score": 0.862,
+        "sources": [
+          "Career/Technical Education Teachers, Postsecondary",
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors"
+        ]
+      },
+      {
+        "term": "Coordination",
+        "category": "skills",
+        "score": 0.85,
+        "sources": [
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors",
+          "First-Line Supervisors of Construction Trades and Extraction Workers"
+        ]
+      },
+      {
+        "term": "Social Perceptiveness",
+        "category": "skills",
+        "score": 0.752,
+        "sources": [
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Sling Load Operations",
+        "category": "skills",
+        "score": 0.7,
+        "sources": [
+          "course: Air Assault Course"
+        ]
+      },
+      {
+        "term": "Load Inspection",
+        "category": "skills",
+        "score": 0.7,
+        "sources": [
+          "course: Air Assault Course"
+        ]
+      },
+      {
+        "term": "Aviation Ground Operations",
+        "category": "skills",
+        "score": 0.7,
+        "sources": [
+          "course: Air Assault Course"
+        ]
+      },
+      {
+        "term": "Fitness Program Design",
+        "category": "skills",
+        "score": 0.7,
+        "sources": [
+          "course: Master Fitness Trainer Course"
+        ]
+      },
+      {
+        "term": "Health & Wellness Coaching",
+        "category": "skills",
+        "score": 0.7,
+        "sources": [
+          "course: Master Fitness Trainer Course"
+        ]
+      },
+      {
+        "term": "First Aid",
+        "category": "skills",
+        "score": 0.65,
+        "sources": [
+          "course: Combat Lifesaver Course",
+          "course: Combat Lifesaver Course - Iet"
+        ]
+      },
+      {
+        "term": "CPR",
+        "category": "skills",
+        "score": 0.65,
+        "sources": [
+          "course: Combat Lifesaver Course",
+          "course: Combat Lifesaver Course - Iet"
+        ]
+      },
+      {
+        "term": "Emergency Response",
+        "category": "skills",
+        "score": 0.65,
+        "sources": [
+          "course: Combat Lifesaver Course",
+          "course: Combat Lifesaver Course - Iet"
+        ]
+      },
+      {
+        "term": "Hazardous Materials Handling",
+        "category": "skills",
+        "score": 0.65,
+        "sources": [
+          "course: HAZMAT Certification Course"
+        ]
+      }
+    ],
+    "knowledge": [
+      {
+        "term": "Public Safety and Security",
+        "category": "knowledge",
+        "score": 1.0,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Emergency Management Directors"
+        ]
+      },
+      {
+        "term": "Law and Government",
+        "category": "knowledge",
+        "score": 0.77,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Police and Sheriff's Patrol Officers",
+          "Security Guards"
+        ]
+      },
+      {
+        "term": "Administration and Management",
+        "category": "knowledge",
+        "score": 0.747,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Security Guards",
+          "First-Line Supervisors of Office and Administrative Support Workers"
+        ]
+      },
+      {
+        "term": "Administrative",
+        "category": "knowledge",
+        "score": 0.645,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Security Guards",
+          "First-Line Supervisors of Office and Administrative Support Workers"
+        ]
+      },
+      {
+        "term": "Telecommunications",
+        "category": "knowledge",
+        "score": 0.629,
+        "sources": [
+          "Security Guards",
+          "Emergency Management Directors",
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Customer and Personal Service",
+        "category": "knowledge",
+        "score": 0.585,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Personnel and Human Resources",
+        "category": "knowledge",
+        "score": 0.558,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Emergency Management Directors",
+          "Transportation, Storage, and Distribution Managers"
+        ]
+      },
+      {
+        "term": "Education and Training",
+        "category": "knowledge",
+        "score": 0.439,
+        "sources": [
+          "Career/Technical Education Teachers, Postsecondary",
+          "Security Guards",
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Psychology",
+        "category": "knowledge",
+        "score": 0.427,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Police and Sheriff's Patrol Officers",
+          "Security Guards"
+        ]
+      },
+      {
+        "term": "Computers and Electronics",
+        "category": "knowledge",
+        "score": 0.383,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Emergency Management Directors"
+        ]
+      },
+      {
+        "term": "Transportation",
+        "category": "knowledge",
+        "score": 0.329,
+        "sources": [
+          "Transportation, Storage, and Distribution Managers",
+          "Emergency Management Directors",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Therapy and Counseling",
+        "category": "knowledge",
+        "score": 0.29,
+        "sources": [
+          "Security Guards",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      }
+    ],
+    "technologies": [
+      {
+        "term": "Microsoft Office software",
+        "category": "technologies",
+        "score": 1.0,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Security Guards",
+          "Career/Technical Education Teachers, Postsecondary"
+        ]
+      },
+      {
+        "term": "Microsoft Outlook",
+        "category": "technologies",
+        "score": 0.97,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors"
+        ]
+      },
+      {
+        "term": "Microsoft Excel",
+        "category": "technologies",
+        "score": 0.887,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors"
+        ]
+      },
+      {
+        "term": "Microsoft Word",
+        "category": "technologies",
+        "score": 0.772,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Stockers and Order Fillers"
+        ]
+      },
+      {
+        "term": "Microsoft PowerPoint",
+        "category": "technologies",
+        "score": 0.75,
+        "sources": [
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors",
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Microsoft Access",
+        "category": "technologies",
+        "score": 0.512,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Stockers and Order Fillers",
+          "First-Line Supervisors of Office and Administrative Support Workers"
+        ]
+      },
+      {
+        "term": "Mozilla Firefox",
+        "category": "technologies",
+        "score": 0.404,
+        "sources": [
+          "Stockers and Order Fillers",
+          "Shipping, Receiving, and Inventory Clerks",
+          "First-Line Supervisors of Office and Administrative Support Workers"
+        ]
+      },
+      {
+        "term": "Google Docs",
+        "category": "technologies",
+        "score": 0.383,
+        "sources": [
+          "Stockers and Order Fillers",
+          "Career/Technical Education Teachers, Postsecondary",
+          "First-Line Supervisors of Office and Administrative Support Workers"
+        ]
+      },
+      {
+        "term": "SAP software",
+        "category": "technologies",
+        "score": 0.383,
+        "sources": [
+          "Stockers and Order Fillers",
+          "Shipping, Receiving, and Inventory Clerks",
+          "First-Line Supervisors of Office and Administrative Support Workers"
+        ]
+      },
+      {
+        "term": "Microsoft SharePoint",
+        "category": "technologies",
+        "score": 0.333,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Emergency Management Directors"
+        ]
+      },
+      {
+        "term": "Adobe Acrobat",
+        "category": "technologies",
+        "score": 0.327,
+        "sources": [
+          "First-Line Supervisors of Construction Trades and Extraction Workers",
+          "First-Line Supervisors of Office and Administrative Support Workers",
+          "Correctional Officers and Jailers"
+        ]
+      },
+      {
+        "term": "Microsoft Edge",
+        "category": "technologies",
+        "score": 0.314,
+        "sources": [
+          "Stockers and Order Fillers",
+          "Shipping, Receiving, and Inventory Clerks"
+        ]
+      }
+    ],
+    "work_activities": [
+      {
+        "term": "Maintain operational records",
+        "category": "work_activities",
+        "score": 1.0,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Emergency Management Directors",
+          "Stockers and Order Fillers"
+        ]
+      },
+      {
+        "term": "Investigate illegal or suspicious activities",
+        "category": "work_activities",
+        "score": 0.905,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Patrol properties to maintain safety",
+        "category": "work_activities",
+        "score": 0.903,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Monitor access or flow of people to prevent problems",
+        "category": "work_activities",
+        "score": 0.882,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Inspect equipment to ensure safety or proper functioning",
+        "category": "work_activities",
+        "score": 0.842,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers",
+          "Correctional Officers and Jailers"
+        ]
+      },
+      {
+        "term": "Block physical access to restricted areas",
+        "category": "work_activities",
+        "score": 0.71,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Prevent unauthorized individuals from entering restricted areas",
+        "category": "work_activities",
+        "score": 0.689,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Maintain surveillance of individuals or establishments",
+        "category": "work_activities",
+        "score": 0.683,
+        "sources": [
+          "First-Line Supervisors of Security Workers",
+          "Correctional Officers and Jailers",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      },
+      {
+        "term": "Order materials, supplies, or equipment",
+        "category": "work_activities",
+        "score": 0.67,
+        "sources": [
+          "Stockers and Order Fillers",
+          "First-Line Supervisors of Security Workers",
+          "Shipping, Receiving, and Inventory Clerks"
+        ]
+      },
+      {
+        "term": "Request emergency personnel",
+        "category": "work_activities",
+        "score": 0.656,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Operate surveillance equipment to detect suspicious or illegal activities",
+        "category": "work_activities",
+        "score": 0.654,
+        "sources": [
+          "Security Guards",
+          "First-Line Supervisors of Security Workers"
+        ]
+      },
+      {
+        "term": "Respond to emergencies to provide assistance",
+        "category": "work_activities",
+        "score": 0.619,
+        "sources": [
+          "Security Guards",
+          "Police and Sheriff's Patrol Officers"
+        ]
+      }
+    ],
+    "leadership": [
+      {
+        "term": "Advanced Leadership",
+        "category": "leadership",
+        "score": 0.8999999999999999,
+        "sources": [
+          "course: Advanced Leader Course"
+        ]
+      },
+      {
+        "term": "Operations Management",
+        "category": "leadership",
+        "score": 0.8999999999999999,
+        "sources": [
+          "course: Advanced Leader Course"
+        ]
+      },
+      {
+        "term": "Organizational Planning",
+        "category": "leadership",
+        "score": 0.8999999999999999,
+        "sources": [
+          "course: Advanced Leader Course"
+        ]
+      },
+      {
+        "term": "First-Line Supervision",
+        "category": "leadership",
+        "score": 0.8,
+        "sources": [
+          "pay grade E6"
+        ]
+      },
+      {
+        "term": "Team Leadership",
+        "category": "leadership",
+        "score": 0.8,
+        "sources": [
+          "pay grade E6"
+        ]
+      },
+      {
+        "term": "On-the-Job Training",
+        "category": "leadership",
+        "score": 0.8,
+        "sources": [
+          "pay grade E6"
+        ]
+      },
+      {
+        "term": "Performance Counseling",
+        "category": "leadership",
+        "score": 0.8,
+        "sources": [
+          "pay grade E6",
+          "course: Basic Leader Course"
+        ]
+      },
+      {
+        "term": "Equipment Accountability",
+        "category": "leadership",
+        "score": 0.8,
+        "sources": [
+          "pay grade E6"
+        ]
+      },
+      {
+        "term": "Leadership Training",
+        "category": "leadership",
+        "score": 0.8,
+        "sources": [
+          "course: Basic Leader Course"
+        ]
+      },
+      {
+        "term": "Team Supervision",
+        "category": "leadership",
+        "score": 0.8,
+        "sources": [
+          "course: Basic Leader Course"
+        ]
+      }
+    ],
+    "training": [
+      {
+        "term": "Advanced Leader Course (2019)",
+        "category": "training",
+        "score": 0.8999999999999999,
+        "sources": [
+          "military education"
+        ]
+      },
+      {
+        "term": "Unit Supply Specialist Course (2020)",
+        "category": "training",
+        "score": 0.8999999999999999,
+        "sources": [
+          "military education"
+        ]
+      },
+      {
+        "term": "Basic Leader Course (2017)",
+        "category": "training",
+        "score": 0.8,
+        "sources": [
+          "military education"
+        ]
+      },
+      {
+        "term": "Air Assault Course (2016)",
+        "category": "training",
+        "score": 0.7,
+        "sources": [
+          "military education"
+        ]
+      },
+      {
+        "term": "Master Fitness Trainer Course (2021)",
+        "category": "training",
+        "score": 0.7,
+        "sources": [
+          "military education"
+        ]
+      },
+      {
+        "term": "Combat Lifesaver Course (2015)",
+        "category": "training",
+        "score": 0.65,
+        "sources": [
+          "military education"
+        ]
+      },
+      {
+        "term": "HAZMAT Certification Course (2021)",
+        "category": "training",
+        "score": 0.65,
+        "sources": [
+          "military education"
+        ]
+      },
+      {
+        "term": "Combat Lifesaver Course - Iet (2014)",
+        "category": "training",
+        "score": 0.65,
+        "sources": [
+          "military education"
+        ]
+      }
+    ],
+    "recognition": [
+      {
+        "term": "Recognized for Performance Excellence",
+        "category": "recognition",
+        "score": 0.7,
+        "sources": [
+          "6 individual performance awards"
+        ]
+      },
+      {
+        "term": "Dependability",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Army Good Conduct Medal"
+        ]
+      },
+      {
+        "term": "International Operations",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Afghanistan Campaign Medal W/ Campaign Star",
+          "award: Overseas Service Ribbon",
+          "award: NATO Medal"
+        ]
+      },
+      {
+        "term": "Deployed Operations",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Afghanistan Campaign Medal W/ Campaign Star",
+          "award: Overseas Service Ribbon",
+          "award: NATO Medal"
+        ]
+      },
+      {
+        "term": "Professional Development",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: NCO Professional Development Ribbon W/ Numeral 2"
+        ]
+      },
+      {
+        "term": "Performance Under Pressure",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Combat Infantryman Badge"
+        ]
+      },
+      {
+        "term": "Crisis Decision-Making",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Combat Infantryman Badge"
+        ]
+      },
+      {
+        "term": "Sling Load Operations",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Air Assault Badge"
+        ]
+      },
+      {
+        "term": "Load Inspection",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Air Assault Badge"
+        ]
+      },
+      {
+        "term": "Firearms Proficiency",
+        "category": "recognition",
+        "score": 0.5,
+        "sources": [
+          "award: Expert Marksmanship Qualification Badge with Rifle Bar"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "term": "U.S. Army Veteran",
+        "category": "experience",
+        "score": 1.0,
+        "sources": [
+          "block 2"
+        ]
+      },
+      {
+        "term": "9+ Years Professional Experience",
+        "category": "experience",
+        "score": 0.9,
+        "sources": [
+          "record of service"
+        ]
+      },
+      {
+        "term": "International Operations",
+        "category": "experience",
+        "score": 0.6,
+        "sources": [
+          "foreign service time"
+        ]
+      },
+      {
+        "term": "Cross-Cultural Collaboration",
+        "category": "experience",
+        "score": 0.5,
+        "sources": [
+          "foreign service time"
+        ]
+      }
+    ]
+  },
+  "ats_keywords": [
+    "Security Guards",
+    "Management of Personnel Resources",
+    "Microsoft Office software",
+    "Advanced Leadership",
+    "Public Safety and Security",
+    "Advanced Leader Course (2019)",
+    "U.S. Army Veteran",
+    "Recognized for Performance Excellence",
+    "Safety and Security Officer",
+    "Negotiation",
+    "Microsoft Outlook",
+    "Operations Management",
+    "Law and Government",
+    "Unit Supply Specialist Course (2020)",
+    "9+ Years Professional Experience",
+    "Dependability",
+    "Security Agent",
+    "Persuasion",
+    "Microsoft Excel",
+    "Organizational Planning",
+    "Administration and Management",
+    "Basic Leader Course (2017)",
+    "International Operations",
+    "Security Guard",
+    "Inventory Management",
+    "Microsoft Word",
+    "First-Line Supervision",
+    "Administrative",
+    "Air Assault Course (2016)",
+    "Cross-Cultural Collaboration",
+    "Deployed Operations",
+    "Security Officer",
+    "Supply Chain Operations",
+    "Microsoft PowerPoint",
+    "Team Leadership",
+    "Telecommunications",
+    "Master Fitness Trainer Course (2021)",
+    "Professional Development",
+    "First-Line Supervisors of Security Workers",
+    "Property Accountability"
+  ],
+  "warnings": [],
+  "attribution": "Occupation data: O*NET 31.0 Database and DMDC Military Occupational Crosswalk, USDOL/ETA, CC BY 4.0."
+}

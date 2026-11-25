@@ -15,8 +15,8 @@ data source, it came from.
 
 > **Status: v0.1 (alpha).** It works end to end on synthetic DD-214s for the Army, Navy,
 > Air Force and Marine Corps, in both the 2000 and 2022 form layouts. It merges several
-> DD-214s for separate periods, and DD-215 corrections given as JSON, into one report. It
-> has not yet been validated against a corpus of real DD-214s. See
+> DD-214s for separate periods, DD-215 corrections given as JSON, and a VMET into one
+> report. It has not yet been validated against a corpus of real DD-214s or VMETs. See
 > [Known limitations](#known-limitations) and [Roadmap](#roadmap).
 
 ---
@@ -28,6 +28,7 @@ data source, it came from.
 - [CLI reference](#cli-reference)
 - [Input formats](#input-formats)
 - [Output formats](#output-formats)
+- [Web app](#web-app)
 - [How it works](#how-it-works)
 - [Data sources and licensing](#data-sources-and-licensing)
 - [Privacy and responsible use](#privacy-and-responsible-use)
@@ -332,6 +333,51 @@ Full structured output for downstream systems (resume builders, job matching, an
 
 ---
 
+## Web app
+
+[`web/`](web/) is a web page for counselors and transitioning service members. A person
+drops in their DD-214s, DD-215s and VMET and gets the same report as `dd214kw translate`,
+with Markdown and JSON downloads. It runs on your own computer. It needs Node 22,
+pnpm 10 and the index from [Quick start](#quick-start):
+
+```bash
+uv run dd214kw build-index --download   # once
+cd web
+pnpm install
+pnpm dev                                 # then open http://localhost:3000
+```
+
+For a production server, run `pnpm build && pnpm start`. The CLI reads `DD214KW_INDEX` as
+usual. `DD214KW_REPO_ROOT` (default `..`) and `DD214KW_UV` (default `uv`) tell the app
+where the repository and `uv` are.
+
+**Privacy.** Documents never leave the computer:
+
+- The server listens on 127.0.0.1 only.
+- `/api/translate` writes the uploaded files to a new temp directory with mode 0700, runs
+  the CLI on them with `execFile`, and deletes the directory in a `finally` block. When
+  the CLI fails, the terminal shows the last line of its error output. The page shows the
+  file name and the CLI's message, never the file's contents.
+- The page bundles its fonts and loads nothing from other hosts. Its
+  Content-Security-Policy blocks connections to any other origin.
+- Next.js can send anonymous usage telemetry about the build, never documents. Turn it off
+  with `pnpm exec next telemetry disable`.
+
+**Engine seam.** The page calls `engine.translate(files)`, exported by
+[`web/src/engine/index.ts`](web/src/engine/index.ts). The one engine today, `localEngine`,
+posts the files to `/api/translate`. A Pyodide engine that runs `dd214kw` in the browser
+would replace that one export. Each engine parses its output into a `Report`, the zod
+schema in [`web/src/engine/report.ts`](web/src/engine/report.ts) for
+`KeywordReport.to_dict()`, so the page never sees raw JSON.
+
+**Markdown.** The route runs the CLI twice in parallel, with `-f json` and with `-f md`.
+`render.py` stays the only Markdown renderer.
+
+Before you merge a change to `web/`, run the manual acceptance steps in
+[`web/TESTING.md`](web/TESTING.md) on your own computer.
+
+---
+
 ## How it works
 
 ```mermaid
@@ -537,6 +583,14 @@ v2c-translator/
 │   ├── models.py               # dataclasses: KeywordReport, Duration, ...
 │   ├── render.py               # rich / Markdown / JSON / ATS renderers
 │   └── data/analog_55.csv      # civilian analogs for military-only SOC 55-xxxx
+├── web/                        # local web app (Next.js); see Web app
+│   ├── src/app/                # page, layout, styles, /api/translate route
+│   ├── src/server/translate.ts # runs the CLI on uploads in a temp directory
+│   ├── src/engine/             # Engine interface, Report schema, localEngine
+│   ├── src/components/         # upload, report view, sample loader
+│   ├── public/samples/         # copies of the synthetic Army fixtures
+│   ├── e2e/                    # Playwright test in the system Chrome
+│   └── TESTING.md              # manual acceptance steps
 ├── tests/
 │   ├── fixtures/               # synthetic DD-214s: Army 2000, Navy 2022, AF + USMC JSON;
 │   │                           #   a DD-215 JSON that corrects the Army 2000 DD-214;
@@ -569,10 +623,17 @@ uv run pytest                             # 74 tests
 uv run ruff check src tests scripts
 uv run ruff format src tests scripts
 uv run python scripts/pii_guard.py        # no records, SSNs or DoD IDs in tracked files
+
+cd web
+pnpm lint
+pnpm typecheck
+pnpm test                                 # 11 tests
+pnpm e2e                                  # 2 tests in Chrome; skipped unless $DD214KW_INDEX exists
 ```
 
 CI runs on every pull request and on pushes to `main`: ruff, the PII guard, the tests on
-Python 3.12 and 3.13 with the index built, and `pip-audit` over `uv.lock`. A red check
+Python 3.12 and 3.13 with the index built, `pip-audit` over `uv.lock`, and the `web` job
+(lint, typecheck, vitest and the Playwright test against a freshly built index). A red check
 blocks the merge. To run the guard on staged files before each commit, install
 [pre-commit](https://pre-commit.com) and run `pre-commit install`.
 
@@ -586,12 +647,15 @@ blocks the merge. To run the guard on staged files before each commit, install
   builds the index, so they never skip there. One test renders a fixture to PDF with
   `reportlab` to exercise the PDF path.
 
-Regenerate the example reports after changing scoring or rules:
+Regenerate the example reports, and the web app's report fixture, after changing scoring,
+rules or the report's fields:
 
 ```bash
 for f in army_2000.txt navy_2022.txt airforce.json marines.json; do
   uv run dd214kw translate tests/fixtures/$f -f md -o docs/examples/${f%.*}.md
 done
+uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_vmet.txt \
+  tests/fixtures/army_2000_dd215.json -f json > web/src/engine/fixtures/army-report.json
 ```
 
 ---
@@ -658,7 +722,8 @@ DD-215 corrections and the VMET reader. The JST reader (item 3 below) is step 5.
 6. **Credentials and labor market.** CareerOneStop certifications and licenses, BLS
    wages, and USAJOBS / National Labor Exchange job matching.
 7. **Service evaluations** (NCOER/OER, EPB/OPB, FITREP/EVAL) as rich free-text inputs.
-8. **API and web UI** for counselors and transitioning service members.
+8. **Web app without Python.** The [web app](#web-app) runs the CLI on the same computer.
+   A Pyodide engine would run `dd214kw` in the browser instead.
 
 ---
 
