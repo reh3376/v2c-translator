@@ -153,7 +153,6 @@ def test_personal_blocks_never_reach_facts_or_report(variant, request, capsys):
     assert _leaked(request.getfixturevalue(variant), capsys) == []
 
 
-@pytest.mark.xfail(strict=True, reason="a box with no bounding label grows over personal data")
 @pytest.mark.parametrize(
     ("omit", "refused"),
     [

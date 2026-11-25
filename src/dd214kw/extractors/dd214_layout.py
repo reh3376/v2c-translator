@@ -7,7 +7,8 @@ block's printed label, boxes the block from its neighbours' labels, takes the wo
 the box, and writes the blocks the extractor needs back out as plain text, one after
 another, in the shape `parse.segment()` already reads. No other block is written, so the
 blocks that hold personal data (name, SSN, birth date, addresses, remarks, signatures,
-separation codes) never leave this module.
+separation codes) never leave this module. No word inside such a block's box is written
+either, and a written block whose box cannot be bounded away from one is not read.
 """
 
 from __future__ import annotations
@@ -45,6 +46,16 @@ class Row:
 
 
 @dataclass(frozen=True, slots=True)
+class Bounds:
+    """The labels that stop a written block's box before the nearest block that holds
+    personal data: one label from `beside` must sit to its right and one from `below` under
+    it. A side with no such block lies open."""
+
+    beside: tuple[str, ...] = ()
+    below: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class Edition:
     name: str  # parse.detect_version()'s name for the layout
     title: str  # written first, so detect_version() knows the layout
@@ -52,9 +63,12 @@ class Edition:
     written: tuple[str, ...]  # the blocks to write, in form order
     record: str  # the record of service, read as a grid
     rows: tuple[Row, ...]
+    withheld: tuple[str, ...]  # blocks that hold personal data: no word in their box is written
+    bounds: tuple[tuple[str, Bounds], ...]  # (written block, the labels that must bound it)
 
 
 DURATION, DATE = False, True
+ABOVE_REMARKS = ("15a", "15b", "15c", "16", "17", "18")
 EDITION_2000 = Edition(
     name="2000",
     title="CERTIFICATE OF RELEASE OR DISCHARGE FROM ACTIVE DUTY",
@@ -119,6 +133,18 @@ EDITION_2000 = Edition(
         Row("h", "INITIAL ENTRY TRAINING", DURATION),
         Row("i", "EFFECTIVE DATE OF PAY GRADE", DATE),
     ),
+    withheld=(
+        *("1", "3", "5", "6", "7a", "7b", "8a", "8b", "9", "18", "19a", "19b", "21", "22"),
+        *(str(block) for block in range(23, 31)),
+    ),
+    bounds=(
+        ("2", Bounds(beside=("3",), below=("4a", "4b", "5", "6"))),
+        ("4a", Bounds(beside=("4b", "5"), below=("7a", "7b"))),
+        ("4b", Bounds(beside=("5",), below=("7a", "7b"))),
+        ("11", Bounds(below=("13", "14", *ABOVE_REMARKS))),
+        ("13", Bounds(below=ABOVE_REMARKS)),
+        ("14", Bounds(below=ABOVE_REMARKS)),
+    ),
 )
 EDITIONS = (EDITION_2000,)
 COLUMNS = ("YEARS", "MONTHS", "DAYS")  # block 12's headings, squashed
@@ -135,8 +161,9 @@ class Status(StrEnum):
     """What the reader did with a block, or with a cell of block 12."""
 
     READ = "read"
-    REFUSED = "refused"  # boxed, but its value could not be read
+    REFUSED = "refused"  # boxed, but its box is not bounded or its value could not be read
     NOT_FOUND = "not-found"  # its label was not found, so it has no box
+    WITHHELD = "withheld"  # it holds personal data: no word in its box is written
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,12 +255,24 @@ def _locate(
     rows: dict[str, _Label],
     tol: float,
 ) -> tuple[Layout, list[str]]:
-    """Box each block the reader writes, and block 12's cells, from the labels found."""
+    """Box each block the reader writes, and block 12's cells, from the labels found.
+
+    The boxes of the blocks that hold personal data are boxed first, and no word inside one
+    is written. A written block is refused when a label that keeps its box off such a block
+    was not found: without it the box would grow over that block, whose own label may also
+    be lost."""
     page_no = page[0].page
     page = [w for w in page if not RULE_RE.fullmatch(w.text)]
     rows = _aligned(rows, tol)
     right = max(w.x1 for w in page) + tol
     bottom = max(w.bottom for w in page) + tol
+
+    def box(block: str) -> tuple[Box, set[str], set[str]]:
+        return _box(blocks[block], blocks.values(), rows.values(), right, bottom, tol)
+
+    withheld = [Region(b, Status.WITHHELD, box(b)[0]) for b in edition.withheld if b in blocks]
+    page = [w for w in page if not any(_inside(w, r.box) for r in withheld)]
+    bounds = dict(edition.bounds)
     regions: list[Region] = []
     cells: list[Cell] = []
     notes: list[str] = []
@@ -242,14 +281,24 @@ def _locate(
             cells, row_notes = _record(edition, page, rows, tol)
             notes += row_notes
             continue
+        name = _name(edition, block).lower()
         if block not in blocks:
             regions.append(Region(block, Status.NOT_FOUND))
-            name = _name(edition, block).lower()
             notes.append(f"Block {block} ({name}) was not found on the page; not read.")
             continue
-        box = _box(blocks[block], blocks.values(), rows.values(), right, bottom, tol)
-        regions.append(Region(block, Status.READ, box, tuple(w for w in page if _inside(w, box))))
-    return Layout(page_no, tuple(regions), tuple(cells)), notes
+        b, beside, below = box(block)
+        need = bounds.get(block, Bounds())
+        sides = {"to the right of": (need.beside, beside), "below": (need.below, below)}
+        unbounded = [side for side, (want, got) in sides.items() if want and not got & set(want)]
+        if unbounded:
+            regions.append(Region(block, Status.REFUSED, b))
+            notes.append(
+                f"Block {block} ({name}) was not read: no block label was found "
+                f"{' or '.join(unbounded)} it, so its box could reach a block with personal data."
+            )
+            continue
+        regions.append(Region(block, Status.READ, b, tuple(w for w in page if _inside(w, b))))
+    return Layout(page_no, (*regions, *withheld), tuple(cells)), notes
 
 
 def _write(edition: Edition, layout: Layout) -> str:
@@ -418,21 +467,20 @@ def _box(
     right: float,
     bottom: float,
     tol: float,
-) -> Box:
+) -> tuple[Box, set[str], set[str]]:
     """The block under `label`: down to the next row of block labels, and right to the
     first label beside it. Block 12's row labels count as beside block 11, so block 11
-    stays bounded when OCR loses block 12's own label."""
+    stays bounded when OCR loses block 12's own label. Also the keys of the labels beside
+    it and below it, any of which bounds the box on that side."""
     blocks = list(blocks)
-    y1 = min((b.top for b in blocks if b.top > label.top + tol), default=bottom)
-    x1 = min(
-        (
-            b.x0
-            for b in [*blocks, *rows]
-            if b.x0 > label.x0 + 5 * tol and label.top - tol <= b.top < y1
-        ),
-        default=right,
-    )
-    return label.x0 - tol, label.top - tol, x1 - tol, y1 - tol
+    below = [b for b in blocks if b.top > label.top + tol]
+    y1 = min((b.top for b in below), default=bottom)
+    beside = [
+        b for b in [*blocks, *rows] if b.x0 > label.x0 + 5 * tol and label.top - tol <= b.top < y1
+    ]
+    x1 = min((b.x0 for b in beside), default=right)
+    box = (label.x0 - tol, label.top - tol, x1 - tol, y1 - tol)
+    return box, {b.key for b in beside}, {b.key for b in below}
 
 
 def _inside(w: Word, box: Box) -> bool:
