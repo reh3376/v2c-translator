@@ -1,0 +1,41 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: python
+          build-mode: none
+      # Results are not uploaded: the repo's code-scanning upload currently fails on GitHub's
+      # side (default setup also returns HTTP 500). Gate on the SARIF here instead, and switch
+      # back to upload: always once the security tab accepts it (#4).
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:python
+          upload: never
+          output: ${{ runner.temp }}/codeql
+      - name: Fail on CodeQL findings
+        run: |
+          jq -r '.runs[].results[]? | "\(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine): \(.ruleId): \(.message.text)"' "$RUNNER_TEMP"/codeql/*.sarif | tee "$RUNNER_TEMP/findings.txt"
+          test ! -s "$RUNNER_TEMP/findings.txt"

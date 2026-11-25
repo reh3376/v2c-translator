@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/reh3376/v2c-translator/security/advisories/new
+    about: Report privately. Never attach a real service record or PII to an issue.
