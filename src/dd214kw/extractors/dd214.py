@@ -40,6 +40,10 @@ from ..parse import (
 )
 from .dd214_layout import read_form
 
+# Off until the reader is recalibrated on a real form's geometry (`dd214kw inspect-layout`).
+# While off, a DD-214 PDF is read in line order, as it was before the layout reader.
+READ_BY_LAYOUT = False
+
 # Fields that hold facts, and their block numbers for Source locators. The 2022 form
 # renumbered most blocks; with an unknown layout, the locator is the field name.
 FIELDS = ("branch", "specialty", "record", "decorations", "education")
@@ -138,7 +142,7 @@ class Dd214:
         return 0.5 if any(k in segs for k in FIELDS) else 0.0
 
     def extract(self, content: Content, source: SourceFactory) -> tuple[Document, list[Fact]]:
-        form = read_form(content.words)
+        form = read_form(content.words if READ_BY_LAYOUT else ())
         text = form.text or content.text
         segs = segment(text)
         layout = detect_version(text)

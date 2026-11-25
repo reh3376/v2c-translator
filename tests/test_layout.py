@@ -38,6 +38,12 @@ AWARDS = [
 COURSES = [("BASIC LEADER COURSE", 4.0, 2012), ("ADVANCED LEADER COURSE", 6.0, 2016)]
 NET_ACTIVE, FOREIGN = Duration(12, 3, 15), Duration(1, 4, 11)
 
+
+@pytest.fixture(autouse=True)
+def read_by_layout(monkeypatch):
+    monkeypatch.setattr("dd214kw.extractors.dd214.READ_BY_LAYOUT", True)
+
+
 needs_tesseract = pytest.mark.skipif(
     not form.tools_available(), reason="needs the tesseract and pdftoppm binaries"
 )
