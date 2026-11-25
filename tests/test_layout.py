@@ -181,6 +181,12 @@ def test_2022_edition_is_read_in_line_order_as_before(tmp_path):
     assert read(pdf) == _line_order(pdf)
 
 
+def test_fillable_pdf_is_read_in_line_order_as_before(tmp_path):
+    """Form field values have no word boxes, so reading by position would drop them."""
+    pdf = form.write_text_pdf(tmp_path / "dd214.pdf", field="SEE ATTACHED")
+    assert read(pdf) == _line_order(pdf)
+
+
 def test_page_without_block_labels_is_read_in_line_order_with_a_note(tmp_path):
     pdf = tmp_path / "dd214.pdf"
     c = Canvas(str(pdf))

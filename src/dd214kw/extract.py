@@ -67,7 +67,8 @@ def _pdf_content(path: Path, *, ocr: bool) -> Content:
         text += "\n" + "\n".join(values)
 
     if len(re.sub(r"\s", "", text)) >= 100:
-        return Content(text, _pdf_words(path))
+        # Field values have no word boxes, so a filled form keeps to its text alone.
+        return Content(text, () if values else _pdf_words(path))
     if not ocr:
         raise ExtractionError(
             "PDF has no usable text layer (probably a scan). Re-run with --ocr "

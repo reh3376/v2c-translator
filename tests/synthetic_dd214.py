@@ -296,12 +296,15 @@ def _texts(*, noisy: bool, title: str) -> list[_Text]:
     return out
 
 
-def write_text_pdf(path: Path, *, noisy: bool = False, title: str = TITLE) -> Path:
+def write_text_pdf(
+    path: Path, *, noisy: bool = False, title: str = TITLE, field: str | None = None
+) -> Path:
     """The form as a PDF with a text layer, drawn in row-major order across the page.
 
     `noisy` draws what a scan's OCR layer holds: confusions (O for 0, l for 1, stray
     punctuation, split and misread label words), two cells no repair can undo, and one text
-    run that crosses from block 11 into block 12.
+    run that crosses from block 11 into block 12. `field` adds a fillable form field that
+    holds that value.
     """
     from reportlab.pdfgen.canvas import Canvas
 
@@ -314,6 +317,8 @@ def write_text_pdf(path: Path, *, noisy: bool = False, title: str = TITLE) -> Pa
         c.line(GRID_X0, y, GRID_X1, y)
     for _, x0, _ in COLUMNS:
         c.line(x0, PAGE_H - 182, x0, PAGE_H - (GRID_TOP + len(RECORD) * ROW_PITCH))
+    if field:
+        c.acroForm.textfield(name="remarks", value=field, x=40, y=PAGE_H - 550, borderWidth=0)
     for t in sorted(_texts(noisy=noisy, title=title), key=lambda t: (t.top, t.x)):
         c.setFont(t.font, t.size)
         if t.then:
