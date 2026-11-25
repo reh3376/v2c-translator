@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { KEYWORD_CATEGORIES, type Report, type SpecialtyMatch } from "@/engine";
-import { CATEGORY_LABELS, documentLabel, formatDuration, formatMonths } from "./format";
+import { CATEGORY_LABELS, documentLabel, downloadName, formatDuration, formatMonths } from "./format";
 
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -13,7 +13,17 @@ function download(name: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export function ReportView({ report, markdown }: { report: Report; markdown: string }) {
+export function ReportView({
+  report,
+  markdown,
+  fileName,
+  producedOn,
+}: {
+  report: Report;
+  markdown: string;
+  fileName: string;
+  producedOn: Date;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => heading.current?.focus(), [report]);
@@ -28,14 +38,14 @@ export function ReportView({ report, markdown }: { report: Report; markdown: str
           <button
             type="button"
             className="button secondary"
-            onClick={() => download("civilian-keywords.md", markdown, "text/markdown")}
+            onClick={() => download(downloadName(fileName, "md", producedOn), markdown, "text/markdown")}
           >
             Download Markdown
           </button>
           <button
             type="button"
             className="button secondary"
-            onClick={() => download("civilian-keywords.json", `${JSON.stringify(report, null, 2)}\n`, "application/json")}
+            onClick={() => download(downloadName(fileName, "json", producedOn), `${JSON.stringify(report, null, 2)}\n`, "application/json")}
           >
             Download JSON
           </button>
