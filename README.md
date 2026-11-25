@@ -32,6 +32,7 @@ data source, it came from.
 - [How it works](#how-it-works)
 - [Data sources and licensing](#data-sources-and-licensing)
 - [Privacy and responsible use](#privacy-and-responsible-use)
+- [Sharing your DD-214 layout safely](#sharing-your-dd-214-layout-safely)
 - [Project structure](#project-structure)
 - [Development](#development)
 - [Customizing the translation](#customizing-the-translation)
@@ -131,7 +132,7 @@ uv run dd214kw translate scanned_dd214.pdf --ocr
 ## CLI reference
 
 ```
-dd214kw [--index PATH] {build-index, translate, lookup} ...
+dd214kw [--index PATH] {build-index, translate, lookup, inspect-layout} ...
 ```
 
 The global option `--index PATH` sets the location of the SQLite index. It defaults to
@@ -189,6 +190,17 @@ A 68W [E] Combat Medic Specialist status=A
   -> 29-1141.03 Critical Care Nurses  w=0.369  (citm)
   ...
 ```
+
+### `inspect-layout FILE`
+
+Prints where things sit on a DD-214 page, with no text from it. See
+[Sharing your DD-214 layout safely](#sharing-your-dd-214-layout-safely).
+
+| Option | Default | Description |
+|---|---|---|
+| `--ocr` | off | OCR a PDF that has no text layer (needs the `ocr` extra) |
+| `-o, --output PATH` | stdout | Write the text to a file instead |
+| `--png PATH` | none | Also draw the geometry as a picture |
 
 ---
 
@@ -438,7 +450,12 @@ So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position ins
    another. The label-based parser reads that text unchanged.
 
 No other block is written, so the name, SSN, birth date, addresses, remarks and
-separation codes never reach the parser. A page that sets the form out one block per line
+separation codes never reach the parser. The reader also boxes those blocks and writes no
+word inside their boxes. Each block it writes needs the labels that stop its box before
+such a block. Block 2 needs block 3's label to its right. Blocks 4a and 4b need a label of
+block 7a or 7b below them. Blocks 13 and 14 need a label of 15a to 18 below them. When none
+is found, the reader leaves that block out with a note, and its box does not grow over
+the personal block. A page that sets the form out one block per line
 needs none of this, and is read in line order as before. So is a fillable PDF with filled
 form fields. When too few labels are found, the page is read in line order with a note
 that says so.
@@ -569,6 +586,8 @@ DD-214s contain sensitive personal data. The tool is built to keep only what it 
   their contents. The PDF layout reader never writes those blocks out at all.
   `tests/test_parse.py::test_sensitive_blocks_never_captured` and
   `tests/test_layout.py::test_personal_blocks_never_reach_facts_or_report` enforce this.
+  `test_block_whose_bounding_label_is_lost_is_refused_not_grown` drops the labels that
+  bound a block and checks that its box still writes nothing personal.
 - **Not used for matching.** Characterization of service and separation codes are
   excluded on purpose, so they can never influence occupational recommendations.
 - **Local only.** All processing runs on your machine against a local index. Nothing is
@@ -586,6 +605,53 @@ before using it on a resume or in a hiring decision.
 
 ---
 
+## Sharing your DD-214 layout safely
+
+The layout reader boxes each block from the form's printed labels. When it misreads a
+real form, the fix needs that form's geometry: where its labels, words and ruled lines
+sit. `inspect-layout` prints that geometry and no text from the document, so you can send
+it to a maintainer instead of the record.
+
+```bash
+uv run dd214kw inspect-layout "<file>.pdf" -o layout.txt --png layout.png
+```
+
+Add `--ocr` for a scan with no text layer. The words are loaded exactly as `translate`
+loads them. Your file name is not written to either file. The step-by-step script is in
+[`docs/inspect-layout.md`](docs/inspect-layout.md).
+
+`layout.txt` starts with a fixed header that says "geometry only; contains no text from
+your document". Every other line is one of these:
+
+| Line | What it holds |
+|---|---|
+| `source text-layer` or `source ocr` | Where the words came from: the PDF's text layer, in points, or OCR, in pixels |
+| `page 0 size 612.0 792.0 unit pt` | Each page's size |
+| `label L4a page 0 score 97.5 bbox 38.0 85.8 124.3 92.3` | A printed form label that was found, by our id, with its match score (0 to 100) and box |
+| `missing L12h page 0` | A printed form label that was not found |
+| `line 5 page 0 \| 40.0 97.7 56.2 106.7 A3 \| ...` | Every other word, in the order the PDF or OCR gives them, as its box and shape code |
+| `run page 0 bbox ... words 10 crosses 1` | A text line as pdfminer or OCR groups it, and the number of vertical rules it crosses |
+| `rules page 0 source image count 50` | Where the ruled lines came from: drawn in the PDF, or found in the scanned image |
+| `rule page 0 h 35.6 59.9 576.4 59.9` | A horizontal (`h`) or vertical (`v`) ruled line, end to end |
+| `block B4a status read bbox ...` | A box the reader drew, and what it did: `read`, `refused`, `not-found` or `withheld` |
+| `cell B12c yr status read bbox ... words 1 shape D4` | One cell of block 12's grid: its box, status and contents' shape |
+
+A box is `x0 top x1 bottom`, measured from the page's top left corner. A shape code is a
+kind and a length. `D` is digits only, `A` is letters only, `P` is punctuation only, and
+`M` is a mix. So `D8` is eight digits, and `M11` is eleven mixed characters.
+
+`layout.png` draws the same page as shapes on a blank canvas. Labels are green boxes
+tagged with their ids. Other words are grey boxes. The reader's boxes are blue, tagged
+with their block. Ruled lines are orange. The page image is never drawn.
+
+`tests/test_inspect_layout.py` runs the command on each synthetic form, which is filled
+in with fake names, an SSN, addresses, places and dates. It fails if any output line is
+not the fixed header or one of the shapes above, if a token of a fake value appears, or if
+the picture holds a colour other than its five or was drawn with anything but
+rectangles, lines and our ids.
+
+---
+
 ## Project structure
 
 ```
@@ -596,8 +662,9 @@ v2c-translator/
 ├── pyproject.toml              # uv project; console script `dd214kw`
 ├── uv.lock
 ├── src/dd214kw/
-│   ├── cli.py                  # argparse CLI: build-index | translate | lookup
+│   ├── cli.py                  # argparse CLI: build-index | translate | lookup | inspect-layout
 │   ├── extract.py              # PDF text layer, word positions, form fields, OCR fallback
+│   ├── inspect_layout.py       # a DD-214 page's geometry, with no text, to share
 │   ├── extractors/             # read(), detect(): one module per document type, emitting facts
 │   │   ├── dd214.py            # DD-214 text (2000 + 2022 layouts) and JSON
 │   │   ├── dd214_layout.py     # a DD-214 page read by block position: boxes and block 12's grid
@@ -632,12 +699,14 @@ v2c-translator/
 │   ├── test_golden.py          # each fixture renders byte-identical to docs/examples/
 │   ├── test_pii_guard.py       # pii_guard flags records and IDs, passes placeholders
 │   ├── test_layout.py          # DD-214 PDFs read by block position: text layer, noise, OCR
+│   ├── test_inspect_layout.py  # inspect-layout prints geometry only, on every synthetic form
 │   ├── test_translate.py       # end-to-end (skipped if no index is built)
 │   ├── synthetic_dd214.py      # draws a fictional AUG 2009 DD-214 PDF, and scans and OCRs it
 │   └── ocr_sweep.py            # which fields survive each scan condition: dpi, blur, noise, skew
 ├── docs/
 │   ├── data-sources.md         # research inventory of data sources
 │   ├── design/                 # design docs (multi-document input)
+│   ├── inspect-layout.md       # how to send your DD-214's layout, step by step
 │   └── examples/               # generated reports for each DD-214 fixture
 └── scripts/
     ├── fetch_public_data.py    # download the extra research and evaluation datasets
@@ -730,8 +799,10 @@ affects the output.
   - A fillable PDF with filled form fields is read line by line, as before. Its field
     values have no position on the page.
 
-  If a document still parses badly, extract the fields upstream (OCR or an LLM) and pass
-  JSON.
+  It failed on a real scanned AUG 2009 form, whose geometry differs from the synthetic
+  one. To help fit it to your form, send its layout: see
+  [Sharing your DD-214 layout safely](#sharing-your-dd-214-layout-safely). If a document
+  still parses badly, extract the fields upstream (OCR or an LLM) and pass JSON.
 - **Supplemental crosswalks are loose.** COOL and Careers in the Military links sometimes
   add surprising occupations (e.g. 11B → *Broadcast Technicians*, via radio duties).
   They're down-weighted and traceable with `--explain`, but not removed.
