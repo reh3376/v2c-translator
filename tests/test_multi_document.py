@@ -6,11 +6,25 @@ from pathlib import Path
 import pytest
 
 from dd214kw.cli import main
+from dd214kw.extract import ExtractionError
+from dd214kw.extractors import read
 from dd214kw.index import DEFAULT_INDEX
+from dd214kw.models import Duration
+from dd214kw.resolve import Profile, resolve
 
 FIX = Path(__file__).parent / "fixtures"
 ARMY = FIX / "army_2000.txt"
 needs_index = pytest.mark.skipif(not DEFAULT_INDEX.exists(), reason="index not built")
+
+
+def _write_json(tmp_path: Path, name: str, obj: dict) -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps(obj))
+    return path
+
+
+def _resolve(*paths: Path) -> Profile:
+    return resolve([f for p in paths for f in read(p)[1]])
 
 
 def _translate_json(capsys, *paths: Path) -> dict:
@@ -43,3 +57,20 @@ def test_a_file_that_fails_extraction_exits_2_naming_it(tmp_path, capsys):
     bad.write_text("hello world")
     assert main(["translate", str(ARMY), str(bad)]) == 2
     assert "unrecognised.txt" in capsys.readouterr().err.replace("\n", "")
+
+
+def test_dd214_json_separation_dates_keep_periods_apart(tmp_path):
+    first = {"branch": "NAVY", "pay_grade": "E-4", "net_active": "0004 00 00"}
+    second = {"branch": "NAVY", "pay_grade": "E-6", "net_active": "0005 06 00"}
+    profile = _resolve(
+        _write_json(tmp_path, "first.json", first | {"separation_date": "2012-05-31"}),
+        _write_json(tmp_path, "second.json", second | {"separation_date": "20180930"}),
+    )
+    assert profile.service_time["net_active"] == Duration(9, 6, 0)
+    assert profile.context.pay_grade == "E6"  # the later separation is the current context
+
+
+def test_a_bad_separation_date_is_an_extraction_error(tmp_path):
+    path = _write_json(tmp_path, "dd214.json", {"branch": "NAVY", "separation_date": "last May"})
+    with pytest.raises(ExtractionError):
+        read(path)

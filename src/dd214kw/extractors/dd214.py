@@ -24,6 +24,7 @@ from ..evidence import (
     SourceFactory,
     TrainingCompleted,
 )
+from ..extract import ExtractionError
 from ..models import Course, Duration, Specialty
 from ..parse import (
     DURATION_STRICT_RE,
@@ -208,6 +209,16 @@ def _json_duration(v: object) -> Duration | None:
     return parse_duration(str(v)) if v else None
 
 
+def _json_date(data: Mapping[str, Any], key: str) -> date | None:
+    """The date under `key`, as YYYY-MM-DD or YYYYMMDD; None if absent."""
+    if not (v := data.get(key)):
+        return None
+    try:
+        return date.fromisoformat(str(v))
+    except ValueError:
+        raise ExtractionError(f"{key} must be a date (YYYY-MM-DD or YYYYMMDD).") from None
+
+
 def _json_facts(
     data: Mapping[str, Any], source: Callable[[str], Source], period_end: date | None
 ) -> list[Fact]:
@@ -232,6 +243,8 @@ class Dd214Json:
 
     Keys: branch, component, grade, pay_grade, specialty, decorations, education,
     net_active, prior_active, foreign_service, sea_service. List or string values.
+    separation_date (YYYY-MM-DD or YYYYMMDD) names the period, so DD-214s for separate
+    periods add up.
     """
 
     doc_type: DocType = "dd214"
@@ -245,6 +258,7 @@ class Dd214Json:
 
     def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]:
         data = json.loads(text)
+        period_end = _json_date(data, "separation_date")
         raw_branch = data.get("branch")
         grade = data.get("grade")
         context = ServiceContext(
@@ -252,10 +266,10 @@ class Dd214Json:
             data.get("component"),
             normalize_pay_grade(data.get("pay_grade")) or pay_grade_from_rank(grade),
             grade,
-            None,
+            period_end,
             source(self.doc_type, "branch"),
         )
-        facts = _json_facts(data, lambda key: source(self.doc_type, key), None)
+        facts = _json_facts(data, lambda key: source(self.doc_type, key), period_end)
         has_specialty = any(isinstance(f, OccupationHeld) for f in facts)
         notes = () if has_specialty else ("No specialty provided.",)
         return Document(self.doc_type, source.doc_id, "json", notes), [context, *facts]
