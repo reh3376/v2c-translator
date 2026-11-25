@@ -196,8 +196,8 @@ A 68W [E] Combat Medic Specialist status=A
 
 | Input | How it's read |
 |---|---|
-| `.pdf` with a text layer | `pypdf` text extraction plus any fillable-form field values, and each word's position from `pdfminer.six`. A DD-214 is read by [block position](#reading-a-pdf-by-block-position). |
-| `.pdf` scan | `--ocr`: `pdf2image` + Tesseract, at the scan's own resolution up to 300 dpi |
+| `.pdf` with a text layer | `pypdf` text extraction plus any fillable-form field values |
+| `.pdf` scan | `--ocr`: `pdf2image` + Tesseract (300 dpi) |
 | `.png` `.jpg` `.tif` … | Tesseract OCR (needs the `ocr` extra) |
 | `.txt` | Read as-is |
 | `.json` | Pre-extracted DD-214 or DD-215 fields, for use with an upstream OCR or LLM extraction step |
@@ -382,8 +382,8 @@ Before you merge a change to `web/`, run the manual acceptance steps in
 
 ```mermaid
 flowchart LR
-    A[DD-214s + DD-215s<br/>PDF / scan / txt / JSON] --> B[extract.py<br/>text layer · word positions ·<br/>form fields · OCR]
-    B --> C[extractors/ + parse.py<br/>block positions · label-based segmentation<br/>→ facts with sources]
+    A[DD-214s + DD-215s<br/>PDF / scan / txt / JSON] --> B[extract.py<br/>text layer · form fields · OCR]
+    B --> C[extractors/ + parse.py<br/>label-based segmentation<br/>→ facts with sources]
     C --> D[resolve.py → Profile<br/>branch · grade · specialties ·<br/>education · awards · service time]
     D --> E[translate.py<br/>code / variant / title match]
     E -->|DMDC crosswalk<br/>+ COOL + CitM| F[Weighted O*NET<br/>occupations]
@@ -415,33 +415,6 @@ Discharge" vs "Certificate of Uniformed Service", "Social Security Number" vs "D
 Number"). Long instruction text in parentheses is stripped before segmentation. Specialty
 entries are split on the duration that ends each entry ("6 YRS 4 MOS"), on `//`
 separators, or on newlines.
-
-#### Reading a PDF by block position
-
-On the printed form, block 11 sits beside block 12, and block 13 sits beside block 14. A
-PDF's text layer, whether the form was typed into it or OCR added it to a scan, holds that
-page line by line across both columns. Read in that order, block 12's labels end up
-inside the specialties, and awards end up in the education list.
-
-So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position instead:
-
-1. It finds the printed block labels by fuzzy match, so OCR noise such as `REC0RD` or
-   `DEPART MENT` still matches. Each printed word belongs to at most one label.
-2. It boxes each block from its label to the next label on the right and down to the next
-   row of labels, then takes the words inside the box.
-3. It reads block 12 as a grid. The row labels give the rows, and the `YEAR(S)`,
-   `MONTH(S)` and `DAY(S)` headings give the columns. In the number cells only, it
-   repairs OCR's usual confusions: `O` for 0, `l`, `I` or `|` for 1, `S` for 5, and
-   stray punctuation. When a row's cells still do not hold 4, 2 and 2 digits, or hold an
-   impossible month or day, it leaves the row out and adds a note. It does not guess.
-4. It writes blocks 2, 4a, 4b, 11, 12, 13 and 14 back out as plain text, one block after
-   another. The label-based parser reads that text unchanged.
-
-No other block is written, so the name, SSN, birth date, addresses, remarks and
-separation codes never reach the parser. A page that sets the form out one block per line
-needs none of this, and is read in line order as before. So is a fillable PDF with filled
-form fields. When too few labels are found, the page is read in line order with a note
-that says so.
 
 ### 2. Matching military codes
 
@@ -566,9 +539,8 @@ DD-214s contain sensitive personal data. The tool is built to keep only what it 
 - **Never captured.** SSN/DoD ID, date of birth, addresses, nearest relative, character
   of service, separation authority/code, reentry code and narrative reason. The parser
   matches these block labels only to find where neighbouring blocks end, and discards
-  their contents. The PDF layout reader never writes those blocks out at all.
-  `tests/test_parse.py::test_sensitive_blocks_never_captured` and
-  `tests/test_layout.py::test_personal_blocks_never_reach_facts_or_report` enforce this.
+  their contents. `tests/test_parse.py::test_sensitive_blocks_never_captured` enforces
+  this.
 - **Not used for matching.** Characterization of service and separation codes are
   excluded on purpose, so they can never influence occupational recommendations.
 - **Local only.** All processing runs on your machine against a local index. Nothing is
@@ -597,10 +569,9 @@ v2c-translator/
 ├── uv.lock
 ├── src/dd214kw/
 │   ├── cli.py                  # argparse CLI: build-index | translate | lookup
-│   ├── extract.py              # PDF text layer, word positions, form fields, OCR fallback
+│   ├── extract.py              # PDF text layer, form fields, OCR fallback
 │   ├── extractors/             # read(), detect(): one module per document type, emitting facts
 │   │   ├── dd214.py            # DD-214 text (2000 + 2022 layouts) and JSON
-│   │   ├── dd214_layout.py     # a DD-214 page read by block position: boxes and block 12's grid
 │   │   ├── dd215.py            # DD-215 JSON
 │   │   └── vmet.py             # VMET (DD Form 2586) text, 2010 edition
 │   ├── parse.py                # label-based DD-214 field parsers (2000 + 2022 layouts)
@@ -631,10 +602,7 @@ v2c-translator/
 │   ├── test_vmet.py            # VMET alone and with a DD-214
 │   ├── test_golden.py          # each fixture renders byte-identical to docs/examples/
 │   ├── test_pii_guard.py       # pii_guard flags records and IDs, passes placeholders
-│   ├── test_layout.py          # DD-214 PDFs read by block position: text layer, noise, OCR
-│   ├── test_translate.py       # end-to-end (skipped if no index is built)
-│   ├── synthetic_dd214.py      # draws a fictional AUG 2009 DD-214 PDF, and scans and OCRs it
-│   └── ocr_sweep.py            # which fields survive each scan condition: dpi, blur, noise, skew
+│   └── test_translate.py       # end-to-end (skipped if no index is built)
 ├── docs/
 │   ├── data-sources.md         # research inventory of data sources
 │   ├── design/                 # design docs (multi-document input)
@@ -651,7 +619,7 @@ v2c-translator/
 ```bash
 uv sync                                   # installs runtime + dev group (pytest, ruff, reportlab)
 uv run dd214kw build-index --download     # needed for end-to-end tests
-uv run pytest                             # 88 tests
+uv run pytest                             # 74 tests
 uv run ruff check src tests scripts
 uv run ruff format src tests scripts
 uv run python scripts/pii_guard.py        # no records, SSNs or DoD IDs in tracked files
@@ -670,18 +638,14 @@ blocks the merge. To run the guard on staged files before each commit, install
 [pre-commit](https://pre-commit.com) and run `pre-commit install`.
 
 - **Python 3.12+**, managed with **uv**; linted and formatted with **ruff** (line length 100).
-- Runtime dependencies: `httpx`, `openpyxl`, `pdfminer.six`, `pypdf`, `rapidfuzz`, `rich`.
-  OCR extras: `pytesseract`, `pdf2image`.
+- Runtime dependencies: `httpx`, `openpyxl`, `pypdf`, `rapidfuzz`, `rich`. OCR extras:
+  `pytesseract`, `pdf2image`.
 - **Test fixtures are synthetic.** They use fictional names and placeholder IDs. Never
   commit a real DD-214, even a redacted one, to this repository.
 - End-to-end tests read the index from `$DD214KW_INDEX` (or the default path) and are
   skipped when it doesn't exist, so the parser tests run without downloading data. CI
-  builds the index, so they never skip there.
-- **PDFs are drawn at test time.** `tests/synthetic_dd214.py` draws a fictional DD-214 with
-  `reportlab`. The OCR tests rasterize it with `pdftoppm` and OCR it with `tesseract`. They
-  skip where those binaries are missing, which includes CI, and the `--ocr` test also
-  needs `uv sync --extra ocr`. To measure how far OCR noise can go, run
-  `uv run --extra ocr python tests/ocr_sweep.py --dpi 150,200 --blur 0.6,1.5 --rotate 0,1`.
+  builds the index, so they never skip there. One test renders a fixture to PDF with
+  `reportlab` to exercise the PDF path.
 
 Regenerate the example reports, and the web app's report fixture, after changing scoring,
 rules or the report's fields:
@@ -714,24 +678,10 @@ affects the output.
 
 ## Known limitations
 
-- **The PDF layout reader is tested on synthetic forms only.** It
-  [reads a DD-214 by block position](#reading-a-pdf-by-block-position), using the
-  geometry of the AUG 2009 edition, which keeps the 2000 layout's block numbers. Its
-  limits, measured with `tests/ocr_sweep.py` on the synthetic form:
-  - The 2022 edition is still read line by line, so its side-by-side blocks can mix. Its
-    geometry is not known here.
-  - Skew of 0.5° or more, or a scan below 200 dpi, loses fields first. Small labels, such
-    as block 2's, stop matching. Lost fields are left out with a note.
-  - An OCR misread that still makes a possible value, such as 15 read as 13, passes
-    through. Block 12's dates could catch some of these, but the reader does not check
-    them yet.
-  - OCR damage inside a block's text, such as `NOTHING FOLLOWS` read as `NOTHING POLLOWS`,
-    still reaches the parser as an extra entry.
-  - A fillable PDF with filled form fields is read line by line, as before. Its field
-    values have no position on the page.
-
-  If a document still parses badly, extract the fields upstream (OCR or an LLM) and pass
-  JSON.
+- **Real-world PDFs vary.** The parser has only been tested on synthetic documents. Many
+  veterans have scanned copies, which need OCR. On the 2000 form, blocks 13 and 14 sit
+  side by side, so plain text extraction can interleave them. If parsing is noisy, extract
+  the fields upstream (OCR or an LLM) and pass JSON.
 - **Supplemental crosswalks are loose.** COOL and Careers in the Military links sometimes
   add surprising occupations (e.g. 11B → *Broadcast Technicians*, via radio duties).
   They're down-weighted and traceable with `--explain`, but not removed.
@@ -760,7 +710,7 @@ for translation. Steps 1–4 are done: the facts and resolver, several files at 
 DD-215 corrections and the VMET reader. The JST reader (item 3 below) is step 5.
 
 1. **Validation on real documents.** Collect consented, redacted DD-214s; measure parse
-   accuracy per block; check the layout reader's block geometry against them.
+   accuracy per block; add a layout-aware PDF extractor for the side-by-side blocks.
 2. **Evaluation harness.** Score occupation matching against the VOW Act enhanced
    crosswalk (68 MOCs → 962 occupations with pay-grade and attainability labels) using
    top-k recall.

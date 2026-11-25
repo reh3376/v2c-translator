@@ -146,8 +146,6 @@ DURATION_STRICT_RE = re.compile(
     r"\d{1,2}\s*(?:YEARS?|YRS?|YR\(S\))\.?(?:\s*,?\s*(?:AND\s*)?\d{1,2}\s*"
     r"(?:MONTHS?|MOS?|MO\(S\))\b\.?)?|\d{1,2}\s*(?:MONTHS?|MOS?|MO\(S\))\b\.?"
 )
-# Longer than any career; a larger YEAR(S) value in block 12 is a misread, not a duration.
-MAX_SERVICE_YEARS = 45
 PAY_GRADE_RE = re.compile(r"\b([EOW])\s*-?\s*0?(10|[1-9])\b")
 YEAR_RE = re.compile(r"\b(19[4-9]\d|20[0-4]\d)\b")
 TRIPLE_RE = re.compile(r"\b(\d{1,4})\s+(\d{1,2})\s+(\d{1,2})\b")
@@ -225,7 +223,7 @@ def parse_duration(s: str | None) -> Duration | None:
         return None
     for m in TRIPLE_RE.finditer(s):
         y, mo, d = (int(g) for g in m.groups())
-        if y <= MAX_SERVICE_YEARS and mo <= 12 and d <= 31:
+        if y <= 45 and mo <= 12 and d <= 31:
             return Duration(y, mo, d)
     for m in DURATION_RE.finditer(s.upper()):
         if m.group("y") or m.group("m"):
