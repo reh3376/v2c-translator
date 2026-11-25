@@ -8,14 +8,15 @@ technologies, work activities and ATS-ready keywords. It is grounded in the offi
 DoD/DMDC military occupational crosswalk and the U.S. Department of Labor's O*NET
 database.
 
-The first component, **`dd214kw`**, reads a **DD Form 214** and produces ranked civilian
-keywords. Every keyword can be traced back to the DD-214 block and the data source it came
-from.
+The first component, **`dd214kw`**, reads a veteran's **DD Form 214s**, plus any
+**DD Form 215** corrections, and produces one ranked set of civilian keywords. Every
+keyword can be traced back to the document and block, and the data source, it came from.
 
 > **Status: v0.1 (alpha).** It works end to end on synthetic DD-214s for the Army, Navy,
-> Air Force and Marine Corps, in both the 2000 and 2022 form layouts. It has not yet been
-> validated against a corpus of real DD-214s. See [Known limitations](#known-limitations)
-> and [Roadmap](#roadmap).
+> Air Force and Marine Corps, in both the 2000 and 2022 form layouts. It merges several
+> DD-214s for separate periods, and DD-215 corrections given as JSON, into one report. It
+> has not yet been validated against a corpus of real DD-214s. See
+> [Known limitations](#known-limitations) and [Roadmap](#roadmap).
 
 ---
 
@@ -40,24 +41,27 @@ from.
 
 ## What it does
 
-Given a DD-214, `dd214kw`:
+Given one person's DD-214s and any DD-215s, `dd214kw`:
 
 1. **Extracts** text from a PDF, a scanned image (with OCR), plain text, or pre-extracted JSON.
-2. **Parses** the occupation-relevant blocks, whichever of the two DD-214 layouts it is:
+2. **Parses** the occupation-relevant blocks of each DD-214, whichever of the two layouts it is:
    - branch and component
    - rank and pay grade
    - every specialty, with time in each
    - decorations and badges
    - military education
    - net, prior, foreign and sea service time
-3. **Matches** each specialty (Army MOS, Air/Space Force AFSC, Navy rating, Marine Corps
+3. **Merges** every document into one profile. Service time from separate periods adds
+   up, a DD-215 replaces the values for the period it corrects, and a specialty, course
+   or award that appears on several documents counts once.
+4. **Matches** each specialty (Army MOS, Air/Space Force AFSC, Navy rating, Marine Corps
    MOS, Coast Guard rating) to the DMDC crosswalk. It handles skill-level suffixes, retired
    codes and written-out titles.
-4. **Maps** each code to weighted civilian occupations (O*NET-SOC). Military-only
+5. **Maps** each code to weighted civilian occupations (O*NET-SOC). Military-only
    occupations are replaced with curated civilian equivalents.
-5. **Scores** keywords in nine categories and merges them with evidence-based rules for
+6. **Scores** keywords in nine categories and merges them with evidence-based rules for
    leadership scope, training, recognition and experience.
-6. **Outputs** a terminal report, Markdown, JSON, or a comma-separated ATS keyword string.
+7. **Outputs** a terminal report, Markdown, JSON, or a comma-separated ATS keyword string.
 
 Excerpt for a synthetic Navy ET1 with 10 years of service
 (full output: [`docs/examples/navy_2022.md`](docs/examples/navy_2022.md)):
@@ -91,6 +95,9 @@ uv run dd214kw build-index --download
 
 # Translate a DD-214
 uv run dd214kw translate path/to/dd214.pdf
+
+# Or every record for one person: DD-214s for each period, plus DD-215 corrections
+uv run dd214kw translate dd214_2014.pdf dd214_2022.pdf dd215.json
 ```
 
 Try it on the bundled synthetic samples:
@@ -100,6 +107,7 @@ uv run dd214kw translate tests/fixtures/army_2000.txt --explain
 uv run dd214kw translate tests/fixtures/navy_2022.txt -f md -o navy.md
 uv run dd214kw translate tests/fixtures/airforce.json -f json
 uv run dd214kw translate tests/fixtures/marines.json -f ats
+uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_2000_dd215.json -f md
 ```
 
 Optional OCR support for scanned DD-214s:
@@ -320,7 +328,7 @@ Full structured output for downstream systems (resume builders, job matching, an
 
 ```mermaid
 flowchart LR
-    A[DD-214<br/>PDF / scan / txt / JSON] --> B[extract.py<br/>text layer · form fields · OCR]
+    A[DD-214s + DD-215s<br/>PDF / scan / txt / JSON] --> B[extract.py<br/>text layer · form fields · OCR]
     B --> C[extractors/ + parse.py<br/>label-based segmentation<br/>→ facts with sources]
     C --> D[resolve.py → Profile<br/>branch · grade · specialties ·<br/>education · awards · service time]
     D --> E[translate.py<br/>code / variant / title match]
@@ -595,6 +603,9 @@ affects the output.
   fixtures yet.
 - **No officer fixtures yet.** Officer AOC/designator matching and O-grade leadership
   rules are implemented but not yet tested.
+- **DD-215s are JSON only.** Correction wording is not standardized across services, so a
+  text or PDF DD-215 reader waits on real samples. A DD-215 whose
+  `corrects_separation_date` matches no DD-214 adds its service time without a warning.
 
 ---
 
@@ -604,7 +615,8 @@ Planned components, in rough priority order (sources are in
 [`docs/data-sources.md`](docs/data-sources.md)). Multi-document input follows the
 accepted design in [`docs/design/multi-document-input.md`](docs/design/multi-document-input.md):
 every document becomes source-tagged facts, which one resolver merges into a profile
-for translation.
+for translation. Steps 1–3 are done: the facts and resolver, several files at once, and
+DD-215 corrections. The VMET and JST readers (item 3 below) are steps 4–5.
 
 1. **Validation on real documents.** Collect consented, redacted DD-214s; measure parse
    accuracy per block; add a layout-aware PDF extractor for the side-by-side blocks.
