@@ -20,6 +20,7 @@ from ..evidence import (
     SourceFactory,
     TrainingCompleted,
 )
+from ..extract import Content
 from ..parse import detect_branch, normalize_pay_grade
 
 MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
@@ -166,7 +167,8 @@ class Vmet:
     def sniff(self, text: str) -> float:
         return 1.0 if TITLE_RE.search(text) else 0.0
 
-    def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]:
+    def extract(self, content: Content, source: SourceFactory) -> tuple[Document, list[Fact]]:
+        text = content.text
         layout = "2010" if FORM_2010_RE.search(text) else "unknown"
         body = FURNITURE_RE.sub("", text)
 
