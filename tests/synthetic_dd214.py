@@ -240,6 +240,13 @@ NOISY_LABELS = {
 }
 
 
+def values() -> list[str]:
+    """Every value the forms are filled in with, as drawn on the clean and the noisy form:
+    the person's data, which nothing that describes the page's layout may echo."""
+    cells = [cell for _, _, *row in RECORD for cell in row]
+    return [box.value for box in BOXES if box.value] + cells + list(NOISY_CELLS.values())
+
+
 @dataclass(frozen=True)
 class _Text:
     top: float  # baseline, from the page's top edge
