@@ -18,6 +18,7 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
+from enum import StrEnum
 from itertools import combinations, pairwise
 
 from rapidfuzz import fuzz
@@ -127,13 +128,55 @@ RULE_RE = re.compile(r"[|\[\]_!\u2013\u2014]+")  # a ruled line read as text
 SPLIT_SEPARATOR_RE = re.compile(r"/\s+/")  # OCR's "/ /" for the "//" between entries
 
 
+Box = tuple[float, float, float, float]  # x0, top, x1, bottom
+
+
+class Status(StrEnum):
+    """What the reader did with a block, or with a cell of block 12."""
+
+    READ = "read"
+    REFUSED = "refused"  # boxed, but its value could not be read
+    NOT_FOUND = "not-found"  # its label was not found, so it has no box
+
+
+@dataclass(frozen=True, slots=True)
+class Region:
+    """A block's box, and the words inside it that the reader writes."""
+
+    block: str
+    status: Status
+    box: Box | None = None
+    words: tuple[Word, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Cell:
+    """One cell of block 12's grid: a row's YEAR(S), MONTH(S) or DAY(S)."""
+
+    row: str  # the row's letter
+    column: str  # one of COLUMNS
+    status: Status
+    box: Box | None = None
+    words: tuple[Word, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Layout:
+    """Where the reader boxed each block it writes on one page, and what it did with each."""
+
+    page: int
+    regions: tuple[Region, ...]
+    cells: tuple[Cell, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class Form:
     """What the layout reader made of a page: the text to parse, or None to parse the page
-    in line order, and notes on what it could not read."""
+    in line order, notes on what it could not read, and the boxes it read."""
 
     text: str | None
     notes: tuple[str, ...] = ()
+    layout: Layout | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,38 +217,66 @@ def read_form(words: Sequence[Word]) -> Form:
         for a, b in combinations(blocks.values(), 2)
     ):
         return Form(None)  # One block per line: line order is already block order.
-    return _write(edition, page, blocks, rows, tol)
+    layout, notes = _locate(edition, page, blocks, rows, tol)
+    return Form(_write(edition, layout), tuple(notes), layout)
 
 
-def _write(
+def _locate(
     edition: Edition,
     page: list[Word],
     blocks: dict[str, _Label],
     rows: dict[str, _Label],
     tol: float,
-) -> Form:
-    out, notes = [edition.title], []
+) -> tuple[Layout, list[str]]:
+    """Box each block the reader writes, and block 12's cells, from the labels found."""
+    page_no = page[0].page
     page = [w for w in page if not RULE_RE.fullmatch(w.text)]
     rows = _aligned(rows, tol)
-    printed = dict(reversed(edition.labels))  # the first label listed for each block
     right = max(w.x1 for w in page) + tol
     bottom = max(w.bottom for w in page) + tol
+    regions: list[Region] = []
+    cells: list[Cell] = []
+    notes: list[str] = []
     for block in edition.written:
-        name = _head(printed[block])
         if block == edition.record:
-            lines, row_notes = _record(edition, page, rows, tol)
-            out += [f"{block}. {name}", *lines]
+            cells, row_notes = _record(edition, page, rows, tol)
             notes += row_notes
             continue
         if block not in blocks:
-            notes.append(f"Block {block} ({name.lower()}) was not found on the page; not read.")
+            regions.append(Region(block, Status.NOT_FOUND))
+            name = _name(edition, block).lower()
+            notes.append(f"Block {block} ({name}) was not found on the page; not read.")
             continue
         box = _box(blocks[block], blocks.values(), rows.values(), right, bottom, tol)
-        lines = _drop_label(_lines([w for w in page if _inside(w, box)]), block + printed[block])
+        regions.append(Region(block, Status.READ, box, tuple(w for w in page if _inside(w, box))))
+    return Layout(page_no, tuple(regions), tuple(cells)), notes
+
+
+def _write(edition: Edition, layout: Layout) -> str:
+    """The blocks read, as plain text in the shape `parse.segment()` reads."""
+    out = [edition.title]
+    regions = {r.block: r for r in layout.regions}
+    for block in edition.written:
+        name = _name(edition, block)
+        if block == edition.record:
+            out += [f"{block}. {name}", *_record_lines(edition, layout.cells)]
+            continue
+        if regions[block].status is not Status.READ:
+            continue
+        lines = _drop_label(_lines(regions[block].words), block + _printed(edition, block))
         text = [SPLIT_SEPARATOR_RE.sub("//", _text(line)) for line in lines]
         # With "//" between entries, a line break in the box is only a wrap.
         out += [f"{block}. {name}", *([" ".join(text)] if any("//" in t for t in text) else text)]
-    return Form("\n".join(out), tuple(notes))
+    return "\n".join(out)
+
+
+def _printed(edition: Edition, block: str) -> str:
+    """The first label listed for `block`."""
+    return next(text for b, text in edition.labels if b == block)
+
+
+def _name(edition: Edition, block: str) -> str:
+    return _head(_printed(edition, block))
 
 
 # --------------------------------------------------------------------------- labels
@@ -332,9 +403,6 @@ def _text(line: Iterable[Word]) -> str:
     return " ".join(w.text for w in line)
 
 
-Box = tuple[float, float, float, float]  # x0, top, x1, bottom
-
-
 def _aligned(rows: dict[str, _Label], tol: float) -> dict[str, _Label]:
     """The row labels that sit in one column; a match elsewhere on the page is a stray."""
     if not rows:
@@ -377,10 +445,11 @@ def _inside(w: Word, box: Box) -> bool:
 
 def _record(
     edition: Edition, page: list[Word], rows: dict[str, _Label], tol: float
-) -> tuple[list[str], list[str]]:
-    """Block 12 read as a grid: rows from the row labels' heights, columns from the
+) -> tuple[list[Cell], list[str]]:
+    """Block 12 boxed as a grid: rows from the row labels' heights, columns from the
     YEAR(S)/MONTH(S)/DAY(S) headings above them."""
     block = edition.record
+    unboxed = [Cell(row.letter, col, Status.NOT_FOUND) for row in edition.rows for col in COLUMNS]
     found = {
         i: statistics.mean(_cy(w) for w in rows[row.letter].words)
         for i, row in enumerate(edition.rows)
@@ -389,7 +458,7 @@ def _record(
     order = sorted(found)
     steps = [(found[j] - found[i]) / (j - i) for i, j in pairwise(order)]
     if not steps:
-        return [], [f"Block {block}'s rows were not found; not read."]
+        return unboxed, [f"Block {block}'s rows were not found; not read."]
     pitch = statistics.median(steps)
     first = statistics.median(found[i] - i * pitch for i in order)  # where row a sits
     # The rows are evenly spaced, so a row whose label OCR missed sits between its neighbours.
@@ -402,33 +471,47 @@ def _record(
     for name in COLUMNS:
         best = max(above, key=lambda w: fuzz.ratio(name, _squash_text(w.text)), default=None)
         if best is None or fuzz.ratio(name, _squash_text(best.text)) < 75:
-            return [], [
+            return unboxed, [
                 f"Block {block}'s YEAR(S)/MONTH(S)/DAY(S) headings were not found; not read."
             ]
         headings.append(_cx(best))
     width = statistics.median(b - a for a, b in pairwise(headings))
     columns = [(c - width / 2, c + width / 2) for c in headings]
 
-    lines, notes = [], []
+    cells, notes = [], []
+    words.sort(key=lambda w: w.x0)
     for i, row in enumerate(edition.rows):
         name = f"block {block}{row.letter} ({row.label.lower()})"
         if i not in centres:
             notes.append(f"The label of {name} was not found; not read.")
+            cells += [Cell(row.letter, col, Status.NOT_FOUND) for col in COLUMNS]
             continue
-        band = (centres[i] - pitch / 2, centres[i] + pitch / 2)
-        cells = [
-            "".join(
-                w.text
-                for w in sorted(words, key=lambda w: w.x0)
-                if x0 <= _cx(w) < x1 and band[0] <= _cy(w) < band[1]
-            )
-            for x0, x1 in columns
-        ]
-        if value := _row_value(cells, row.is_date):
-            lines.append(f"{row.letter.upper()}. {row.label} {value}")
-        else:
+        top, bottom = centres[i] - pitch / 2, centres[i] + pitch / 2
+        boxes = [(x0, top, x1, bottom) for x0, x1 in columns]
+        inside = [tuple(w for w in words if _inside(w, box)) for box in boxes]
+        status = Status.READ if _row_value(map(_cell, inside), row.is_date) else Status.REFUSED
+        if status is Status.REFUSED:
             notes.append(f"The value of {name} could not be read; not used.")
-    return lines, notes
+        cells += [
+            Cell(row.letter, col, status, box, ws)
+            for col, box, ws in zip(COLUMNS, boxes, inside, strict=True)
+        ]
+    return cells, notes
+
+
+def _record_lines(edition: Edition, cells: Sequence[Cell]) -> list[str]:
+    """Block 12's rows read, one line each: the row label, then 'YYYY MM DD'."""
+    lines = []
+    for row in edition.rows:
+        row_cells = [c for c in cells if c.row == row.letter]
+        if all(c.status is Status.READ for c in row_cells):
+            value = _row_value((_cell(c.words) for c in row_cells), row.is_date)
+            lines.append(f"{row.letter.upper()}. {row.label} {value}")
+    return lines
+
+
+def _cell(words: Iterable[Word]) -> str:
+    return "".join(w.text for w in words)
 
 
 def _digits(cell: str) -> str:
@@ -440,7 +523,7 @@ def _digits(cell: str) -> str:
     return s
 
 
-def _row_value(cells: list[str], is_date: bool) -> str | None:
+def _row_value(cells: Iterable[str], is_date: bool) -> str | None:
     """'YYYY MM DD' when the three cells hold a possible value; None rather than a guess."""
     digits = [_digits(c) for c in cells]
     if not all(d.isdigit() for d in digits) or tuple(map(len, digits)) != CELL_DIGITS:
