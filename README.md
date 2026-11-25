@@ -132,7 +132,21 @@ Downloads the source data (if asked) and builds the SQLite index.
 | `--download` | off | Fetch any missing source files from onetcenter.org |
 | `--raw-dir DIR` | `data/raw` | Where source files are stored or looked for |
 
-### `translate FILE`
+### `translate FILE...`
+
+Translates one person's documents into one report. Pass every DD-214 and DD-215 for that
+person, in any order:
+
+- DD-214s for separate periods add up. Net active service is summed across the periods.
+- A DD-215 corrects the DD-214 whose separation date it names. See
+  [DD-215 JSON schema](#dd-215-json-schema).
+
+The content of each file decides its document type. If a file can't be read, the command
+exits with code 2 and the error names that file.
+
+```bash
+uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_2000_dd215.json -f md
+```
 
 | Option | Default | Description |
 |---|---|---|
@@ -142,7 +156,7 @@ Downloads the source data (if asked) and builds the SQLite index.
 | `--limit N` | `40` | Number of terms in the ATS string |
 | `--explain` | off | Show each keyword's score and sources (`rich` format) |
 | `--ocr` | off | OCR a PDF that has no text layer (needs the `ocr` extra) |
-| `--json-input` | auto for `.json` | Treat FILE as pre-extracted fields |
+| `--json-input` | auto for `.json` | Read every FILE as text, with no OCR |
 | `--branch NAME` | detected | Override branch: `Army`, `Navy`, `Air Force`, `Space Force`, `Marine Corps`, `Coast Guard` |
 
 ### `lookup CODE`
@@ -170,10 +184,14 @@ A 68W [E] Combat Medic Specialist status=A
 | `.pdf` scan | `--ocr`: `pdf2image` + Tesseract (300 dpi) |
 | `.png` `.jpg` `.tif` … | Tesseract OCR (needs the `ocr` extra) |
 | `.txt` | Read as-is |
-| `.json` | Pre-extracted fields, for use with an upstream OCR or LLM extraction step |
+| `.json` | Pre-extracted DD-214 or DD-215 fields, for use with an upstream OCR or LLM extraction step |
 
-**JSON input schema.** Every field is optional. Values can be strings (entries separated
-by `//`, `;` or newlines) or lists.
+A DD-215 is read only as JSON. There is no reader for DD-215 text or PDF yet.
+
+### DD-214 JSON schema
+
+Every field is optional. Values can be strings (entries separated by `//`, `;` or
+newlines) or lists. Dates are `YYYY-MM-DD` or `YYYYMMDD`.
 
 ```json
 {
@@ -187,9 +205,40 @@ by `//`, `;` or newlines) or lists.
   "net_active": "0009 03 00",
   "prior_active": {"years": 0, "months": 0, "days": 0},
   "foreign_service": "0002 00 00",
-  "sea_service": "0000 00 00"
+  "sea_service": "0000 00 00",
+  "separation_date": "2023-09-30"
 }
 ```
+
+`separation_date` is block 12b (2000 form) or 13b (2022 form). It names the service
+period. DD-214s with different separation dates add up, and a DD-215 corrects the DD-214
+with the same date. Without it, a DD-215's service time is added to the DD-214's instead
+of replacing it. An optional `form` key must be `DD-214`.
+
+### DD-215 JSON schema
+
+A DD-215 corrects one DD-214. `form` must be `DD-215`, and `corrects_separation_date` is
+required.
+
+```json
+{
+  "form": "DD-215",
+  "corrects_separation_date": "2022-06-01",
+  "issued": "2023-03-15",
+  "net_active": "0009 01 00",
+  "decorations": ["ARMY COMMENDATION MEDAL (3RD AWARD)"],
+  "education": ["MASTER FITNESS TRAINER COURSE, 2 WEEKS, 2021"]
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `form` | `DD-215`. This key selects the DD-215 reader. |
+| `corrects_separation_date` | Required. The separation date of the DD-214 that this DD-215 corrects. |
+| `issued` | Optional. When two DD-215s correct the same period, the later one wins. |
+| `net_active`, `prior_active`, `foreign_service`, `sea_service` | The corrected value. It replaces the DD-214's value for that period. |
+| `specialty`, `decorations`, `education` | Entries to add. An award listed again keeps its highest count. |
+| `branch`, `component`, `grade`, `pay_grade` | Not applied. The report adds one note that names them. |
 
 ---
 
@@ -452,7 +501,9 @@ v2c-translator/
 ├── src/dd214kw/
 │   ├── cli.py                  # argparse CLI: build-index | translate | lookup
 │   ├── extract.py              # PDF text layer, form fields, OCR fallback
-│   ├── extractors/             # detect() + DD-214 extractors (text, JSON) emitting facts
+│   ├── extractors/             # read(), detect(): one module per document type, emitting facts
+│   │   ├── dd214.py            # DD-214 text (2000 + 2022 layouts) and JSON
+│   │   └── dd215.py            # DD-215 JSON
 │   ├── parse.py                # label-based DD-214 field parsers (2000 + 2022 layouts)
 │   ├── evidence.py             # fact kinds, Source provenance, scrub()
 │   ├── resolve.py              # resolve(facts) -> Profile: dedup and conflict policy
@@ -463,14 +514,18 @@ v2c-translator/
 │   ├── render.py               # rich / Markdown / JSON / ATS renderers
 │   └── data/analog_55.csv      # civilian analogs for military-only SOC 55-xxxx
 ├── tests/
-│   ├── fixtures/               # synthetic DD-214s: Army 2000, Navy 2022, AF + USMC JSON
+│   ├── fixtures/               # synthetic DD-214s: Army 2000, Navy 2022, AF + USMC JSON;
+│   │                           #   a DD-215 JSON that corrects the Army 2000 DD-214
 │   ├── test_parse.py           # parser, rules, privacy (no index needed)
 │   ├── test_evidence.py        # fact kinds, extraction, PII scrubbing
 │   ├── test_resolve.py         # resolution policy, from hand-made facts
+│   ├── test_multi_document.py  # several files: separate periods, DD-215 corrections
+│   ├── test_golden.py          # each fixture renders byte-identical to docs/examples/
 │   └── test_translate.py       # end-to-end (skipped if no index is built)
 ├── docs/
 │   ├── data-sources.md         # research inventory of data sources
-│   └── examples/               # generated reports for each fixture
+│   ├── design/                 # design docs (multi-document input)
+│   └── examples/               # generated reports for each DD-214 fixture
 └── scripts/
     └── fetch_public_data.py    # download the extra research and evaluation datasets
 ```
@@ -482,7 +537,7 @@ v2c-translator/
 ```bash
 uv sync                                   # installs runtime + dev group (pytest, ruff, reportlab)
 uv run dd214kw build-index --download     # needed for end-to-end tests
-uv run pytest                             # 18 tests
+uv run pytest                             # 58 tests
 uv run ruff check src tests scripts
 uv run ruff format src tests scripts
 ```
