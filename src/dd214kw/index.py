@@ -30,9 +30,10 @@ DOWNLOADS: dict[str, str] = {
     "db_31_0_text.zip": f"{ONET}/dl_files/database/db_31_0_text.zip",
 }
 
-# How much each crosswalk source is trusted when weighting civilian occupations.
+# How much each crosswalk source is trusted when weighting civilian occupations. "vmet"
+# links come from the member's own VMET at translate time, not from the index.
 # (The 2010 Army KSA crosswalk is not used: it fans out to ~80-190 occupations per MOS.)
-LINK_WEIGHTS = {"dmdc": 1.0, "cool": 0.7, "citm": 0.5}
+LINK_WEIGHTS = {"dmdc": 1.0, "cool": 0.7, "citm": 0.5, "vmet": 0.9}
 ANALOG_WEIGHT = 0.5  # civilian analogs substituted for military-only SOC 55-xxxx codes
 
 SCHEMA = """

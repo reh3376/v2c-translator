@@ -69,7 +69,9 @@ def resolve(facts: Iterable[Fact]) -> Profile:
     return Profile(
         context=context,
         occupations=_union(of(OccupationHeld), _occupation_key, _longest),
-        civilian_equivalents=_union(of(CivilianEquivalent), lambda f: f.onet.strip()),
+        civilian_equivalents=_union(
+            of(CivilianEquivalent), lambda f: (_norm(f.for_code or ""), f.onet.strip())
+        ),
         training=_training(of(TrainingCompleted)),
         awards=_union(of(Award), lambda f: _norm(f.name), _most_awarded),
         service_time=_service_time(of(ServiceTime)),

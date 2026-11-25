@@ -19,6 +19,7 @@ from dd214kw.resolve import resolve
 
 FIX = Path(__file__).parent / "fixtures"
 ARMY_PII = ("000-00-0000", "19900101", "123 TEST ST", "HONORABLE", "KBK")
+PII = {"army_2000.txt": ARMY_PII, "army_vmet.txt": ("SAMPLE", "JORDAN", "TEST")}  # VMET: name
 SRC = Source("eval", "aaaaaaaaaaaa", "bullet 1", None, 1.0)
 
 
@@ -26,18 +27,20 @@ def _json(obj) -> str:
     return json.dumps(dataclasses.asdict(obj), default=str).upper()
 
 
-def test_no_fact_or_profile_serialization_contains_pii():
-    _, facts = read(FIX / "army_2000.txt")
+@pytest.mark.parametrize("fixture", PII)
+def test_no_fact_or_profile_serialization_contains_pii(fixture):
+    _, facts = read(FIX / fixture)
     for blob in [*map(_json, facts), _json(resolve(facts))]:
-        for s in ARMY_PII:
+        for s in PII[fixture]:
             assert s not in blob
 
 
 @pytest.mark.skipif(not DEFAULT_INDEX.exists(), reason="index not built")
-def test_json_report_contains_no_pii(capsys):
-    assert main(["translate", str(FIX / "army_2000.txt"), "-f", "json"]) == 0
+@pytest.mark.parametrize("fixture", PII)
+def test_json_report_contains_no_pii(fixture, capsys):
+    assert main(["translate", str(FIX / fixture), "-f", "json"]) == 0
     out = capsys.readouterr().out.upper()
-    for s in ARMY_PII:
+    for s in PII[fixture]:
         assert s not in out
 
 

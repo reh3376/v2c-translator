@@ -102,7 +102,8 @@ def main(argv: list[str] | None = None) -> int:
         nargs="+",
         type=Path,
         metavar="FILE",
-        help="One person's DD-214s (.pdf, .txt, image, or pre-extracted .json) and DD-215s (.json)",
+        help="One person's DD-214s (.pdf, .txt, image, or pre-extracted .json), DD-215s (.json) "
+        "and VMET (.pdf, .txt)",
     )
     t.add_argument("-f", "--format", choices=["rich", "md", "json", "ats"], default="rich")
     t.add_argument("-o", "--output", type=Path)
