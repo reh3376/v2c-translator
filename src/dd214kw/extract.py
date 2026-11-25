@@ -33,10 +33,12 @@ class Word:
 
 @dataclass(frozen=True, slots=True)
 class Content:
-    """A file's text in line order, and its words with their boxes (none for plain text)."""
+    """A file's text in line order, and its words with their boxes (none for plain text).
+    For OCR, also the lines tesseract put the words in; a text layer has none here."""
 
     text: str
     words: tuple[Word, ...] = ()
+    lines: tuple[tuple[Word, ...], ...] = ()
 
 
 def load_text(path: Path, *, ocr: bool = False) -> Content:
@@ -74,11 +76,18 @@ def _pdf_content(path: Path, *, ocr: bool) -> Content:
             "PDF has no usable text layer (probably a scan). Re-run with --ocr "
             "(requires `uv sync --extra ocr` plus the tesseract and poppler binaries)."
         )
+    return _ocr_images(render_scan(path))
+
+
+def render_scan(path: Path) -> list:
+    """A scanned PDF's pages as images, for OCR, at the resolution it was scanned at."""
+    from pypdf import PdfReader
+
     try:
         from pdf2image import convert_from_path
     except ImportError as e:  # pragma: no cover - optional dependency
         raise ExtractionError("OCR needs the 'ocr' extra: uv sync --extra ocr") from e
-    return _ocr_images(convert_from_path(str(path), dpi=_scan_dpi(reader)))
+    return convert_from_path(str(path), dpi=_scan_dpi(PdfReader(path)))
 
 
 def _scan_dpi(reader) -> int:
@@ -161,24 +170,26 @@ def _open_image(path: Path):
 
 
 def _ocr_images(images) -> Content:
-    """OCR each page once: its words with their boxes, and its text in tesseract's line order."""
+    """OCR each page once: its words with their boxes, in tesseract's lines and line order."""
     try:
         import pytesseract
     except ImportError as e:  # pragma: no cover
         raise ExtractionError("OCR needs the 'ocr' extra: uv sync --extra ocr") from e
-    words: list[Word] = []
+    lines: list[tuple[Word, ...]] = []
     pages: list[str] = []
     for page_no, img in enumerate(images):
         data = pytesseract.image_to_data(
             img, config=TESSERACT_CONFIG, output_type=pytesseract.Output.DICT
         )
-        lines: dict[tuple[int, int, int], list[str]] = {}
+        page: dict[tuple[int, int, int], list[Word]] = {}
         for i, text in enumerate(data["text"]):
             if not text.strip():
                 continue
             x, y = data["left"][i], data["top"][i]
-            words.append(Word(text, x, y, x + data["width"][i], y + data["height"][i], page_no))
             key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
-            lines.setdefault(key, []).append(text)
-        pages.append("\n".join(" ".join(line) for line in lines.values()))
-    return Content("\n".join(pages), tuple(words))
+            page.setdefault(key, []).append(
+                Word(text, x, y, x + data["width"][i], y + data["height"][i], page_no)
+            )
+        lines += map(tuple, page.values())
+        pages.append("\n".join(" ".join(w.text for w in line) for line in page.values()))
+    return Content("\n".join(pages), tuple(w for line in lines for w in line), tuple(lines))
