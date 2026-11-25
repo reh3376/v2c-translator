@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from ..evidence import DocType, Document, Fact, SourceFactory
-from ..extract import ExtractionError, load_text
+from ..extract import Content, ExtractionError, load_text
 from .dd214 import Dd214, Dd214Json
 from .dd215 import Dd215Json
 from .vmet import Vmet
@@ -17,7 +17,7 @@ class Extractor(Protocol):
 
     def sniff(self, text: str) -> float: ...  # 0..1: is this my document?
 
-    def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]: ...
+    def extract(self, content: Content, source: SourceFactory) -> tuple[Document, list[Fact]]: ...
 
 
 EXTRACTORS: tuple[Extractor, ...] = (Vmet(), Dd214(), Dd214Json(), Dd215Json())
@@ -38,7 +38,7 @@ def read(path: Path, *, ocr: bool = False, json_input: bool = False) -> tuple[Do
     Either way, `detect()` picks the extractor.
     """
     if json_input or path.suffix.lower() == ".json":
-        text = path.read_text()
+        content = Content(path.read_text())
     else:
-        text = load_text(path, ocr=ocr)
-    return detect(text).extract(text, SourceFactory.for_bytes(path.read_bytes()))
+        content = load_text(path, ocr=ocr)
+    return detect(content.text).extract(content, SourceFactory.for_bytes(path.read_bytes()))
