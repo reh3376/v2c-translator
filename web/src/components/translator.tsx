@@ -11,7 +11,7 @@ const ACCEPT = ".pdf,.txt,.json,.png,.jpg,.jpeg,.tif,.tiff";
 type Phase =
   | { kind: "editing" }
   | { kind: "translating" }
-  | { kind: "done"; report: Report; markdown: string }
+  | { kind: "done"; report: Report; markdown: string; fileName: string; producedOn: Date }
   | { kind: "failed"; error: TranslateFailure };
 
 type State = { files: File[]; phase: Phase };
@@ -20,7 +20,8 @@ type Action =
   | { type: "add"; files: File[] }
   | { type: "remove"; index: number }
   | { type: "start" }
-  | { type: "finish"; result: TranslateResult };
+  | { type: "finish"; result: TranslateResult; fileName: string; producedOn: Date }
+  | { type: "fail"; error: TranslateFailure };
 
 const sameFile = (a: File, b: File) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
 
@@ -35,12 +36,14 @@ function reduce(state: State, action: Action): State {
     case "start":
       return { ...state, phase: { kind: "translating" } };
     case "finish": {
-      const { result } = action;
+      const { result, fileName, producedOn } = action;
       const phase: Phase = result.ok
-        ? { kind: "done", report: result.report, markdown: result.markdown }
+        ? { kind: "done", report: result.report, markdown: result.markdown, fileName, producedOn }
         : { kind: "failed", error: result };
       return { ...state, phase };
     }
+    case "fail":
+      return { ...state, phase: { kind: "failed", error: action.error } };
     default: {
       const unhandled: never = action;
       return unhandled;
@@ -66,7 +69,8 @@ export function Translator() {
 
   async function translate(chosen: File[]) {
     dispatch({ type: "start" });
-    dispatch({ type: "finish", result: await engine.translate(chosen) });
+    const result = await engine.translate(chosen);
+    dispatch({ type: "finish", result, fileName: chosen[0]?.name ?? "", producedOn: new Date() });
   }
 
   async function trySamples() {
@@ -75,7 +79,7 @@ export function Translator() {
       samples = await loadSamples();
     } catch {
       const message = "The sample documents couldn't be loaded. Restart the app and try again.";
-      dispatch({ type: "finish", result: { ok: false, message } });
+      dispatch({ type: "fail", error: { ok: false, message } });
       return;
     }
     dispatch({ type: "add", files: samples });
@@ -186,7 +190,14 @@ export function Translator() {
         </aside>
       </section>
 
-      {phase.kind === "done" ? <ReportView report={phase.report} markdown={phase.markdown} /> : null}
+      {phase.kind === "done" ? (
+        <ReportView
+          report={phase.report}
+          markdown={phase.markdown}
+          fileName={phase.fileName}
+          producedOn={phase.producedOn}
+        />
+      ) : null}
     </>
   );
 }

@@ -17,10 +17,18 @@ test("translates the sample documents into a report", async ({ page }) => {
   );
   await expect(page.getByRole("region", { name: "Experience" })).toContainText("9+ Years Professional Experience");
 
-  const download = page.waitForEvent("download");
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  const markdownDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download Markdown" }).click();
-  const markdown = await readFile(await (await download).path(), "utf8");
+  expect((await markdownDownload).suggestedFilename()).toBe(`army_2000-civilian-keywords-${today}.md`);
+  const markdown = await readFile(await (await markdownDownload).path(), "utf8");
   expect(markdown).toContain("| 11B30 INFANTRYMAN 6 YRS 4 MOS | 11B Infantryman |");
+
+  const jsonDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download JSON" }).click();
+  expect((await jsonDownload).suggestedFilename()).toBe(`army_2000-civilian-keywords-${today}.json`);
 });
 
 test("names a file the translator can't read", async ({ page }) => {
