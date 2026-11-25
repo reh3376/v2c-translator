@@ -1,6 +1,6 @@
 # Design: multi-document input
 
-Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · steps 1-2: merged (PR #1) · step 3: merged (PR #2)
+Status: **accepted: Shape B** (evidence ledger → resolved profile) · 2026-11-25 · scope: `dd214kw` → v2c-translator core · steps 1-2: merged (PR #1) · step 3: merged (PR #2) · step 4: in progress
 
 ## Problem
 
@@ -243,8 +243,9 @@ Each step ships on its own, with `docs/examples/*.md` regenerated and diffed.
 
 ## Open questions
 
-1. **Samples.** VMET and JST layouts need real (redacted) samples before steps 4–5. ACE
-   publishes sample JSTs; a VMET sample is the main gap.
+1. **Samples.** The VMET reader's labels come from publicly posted samples of the 2010
+   edition. The reader still needs validation on a real, redacted VMET. The JST layout
+   needs real (redacted) samples before step 5; ACE publishes sample JSTs.
 2. **Rating scores.** Should evaluation numeric ratings ever be used? This design
    excludes them, the same way it excludes characterization.
 3. **Model-extracted facts.** How much weight should a resume or LLM fact carry against
