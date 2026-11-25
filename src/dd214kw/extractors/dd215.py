@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 
 from ..evidence import DocType, Document, Fact, SourceFactory
-from ..extract import ExtractionError
+from ..extract import Content, ExtractionError
 from .dd214 import _json_date, _json_facts, _json_form, _json_object
 
 # DD-214 keys a DD-215 can carry but this reader does not apply. resolve() keeps the latest
@@ -32,8 +32,8 @@ class Dd215Json:
         data = _json_object(text)
         return 1.0 if data is not None and _json_form(data) == "DD215" else 0.0
 
-    def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]:
-        data = json.loads(text)
+    def extract(self, content: Content, source: SourceFactory) -> tuple[Document, list[Fact]]:
+        data = json.loads(content.text)
         period_end = _json_date(data, "corrects_separation_date")
         if period_end is None:
             raise ExtractionError(

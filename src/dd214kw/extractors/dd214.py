@@ -24,7 +24,7 @@ from ..evidence import (
     SourceFactory,
     TrainingCompleted,
 )
-from ..extract import ExtractionError
+from ..extract import Content, ExtractionError
 from ..models import Course, Duration, Specialty
 from ..parse import (
     DURATION_STRICT_RE,
@@ -136,7 +136,8 @@ class Dd214:
         segs = segment(text)
         return 0.5 if any(k in segs for k in FIELDS) else 0.0
 
-    def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]:
+    def extract(self, content: Content, source: SourceFactory) -> tuple[Document, list[Fact]]:
+        text = content.text
         segs = segment(text)
         layout = detect_version(text)
         blocks = BLOCKS[layout]
@@ -271,8 +272,8 @@ class Dd214Json:
             return 0.0
         return 1.0 if JSON_KEYS & data.keys() else 0.0
 
-    def extract(self, text: str, source: SourceFactory) -> tuple[Document, list[Fact]]:
-        data = json.loads(text)
+    def extract(self, content: Content, source: SourceFactory) -> tuple[Document, list[Fact]]:
+        data = json.loads(content.text)
         period_end = _json_date(data, "separation_date")
         raw_branch = data.get("branch")
         grade = data.get("grade")

@@ -11,7 +11,7 @@ import pytest
 import synthetic_dd214 as form
 
 from dd214kw.evidence import SourceFactory
-from dd214kw.extract import load_text
+from dd214kw.extract import Content, load_text
 from dd214kw.extractors import Dd214
 from dd214kw.resolve import resolve
 
@@ -28,11 +28,17 @@ def noisy_pdf(pdfs):
 
 def _line_order(pdf: Path):
     """The PDF read the way main read it: its text in line order, without word positions."""
-    return Dd214().extract(load_text(pdf), SourceFactory.for_bytes(pdf.read_bytes()))
+    return Dd214().extract(Content(load_text(pdf).text), SourceFactory.for_bytes(pdf.read_bytes()))
 
 
 def _occupations(profile):
     return [(o.value.title, o.value.months) for o in profile.occupations]
+
+
+def test_words_in_one_text_run_keep_their_own_positions(noisy_pdf):
+    """The noisy form writes block 11's first line and row 12a's label as one text run."""
+    words = {w.text: w for w in load_text(noisy_pdf).words}
+    assert words["COLLECTOR"].x1 < form.GRID_X0 < words["ENTERED"].x0
 
 
 def test_line_order_mixes_side_by_side_blocks(noisy_pdf):
