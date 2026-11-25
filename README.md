@@ -344,7 +344,7 @@ pnpm 10 and the index from [Quick start](#quick-start):
 uv run dd214kw build-index --download   # once
 cd web
 pnpm install
-pnpm dev                                 # then open http://localhost:3000
+pnpm dev                                 # then open http://localhost:3009
 ```
 
 For a production server, run `pnpm build && pnpm start`. The CLI reads `DD214KW_INDEX` as
