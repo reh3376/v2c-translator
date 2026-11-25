@@ -492,6 +492,9 @@ DD-214s contain sensitive personal data. The tool is built to keep only what it 
 - **Self-provided documents.** VMETs and similar records are Privacy Act data that only
   the individual may provide. Design ingestion around the veteran uploading their own
   documents, with consent.
+- **Never commit a real record.** `scripts/pii_guard.py` enforces this in CI and as a
+  pre-commit hook. It fails on SSN- and DoD ID-shaped numbers that are not placeholders,
+  and on any PDF or image file. See [`SECURITY.md`](SECURITY.md).
 
 The keywords are a starting point for a human, not a determination of qualifications.
 Supplemental crosswalks can produce loose associations. Review the output with the veteran
@@ -504,6 +507,8 @@ before using it on a resume or in a hiring decision.
 ```
 v2c-translator/
 ├── README.md
+├── SECURITY.md                 # private vulnerability reports; no real records in issues or PRs
+├── .github/                    # CI workflow, Dependabot, PR and issue templates
 ├── pyproject.toml              # uv project; console script `dd214kw`
 ├── uv.lock
 ├── src/dd214kw/
@@ -529,13 +534,15 @@ v2c-translator/
 │   ├── test_resolve.py         # resolution policy, from hand-made facts
 │   ├── test_multi_document.py  # several files: separate periods, DD-215 corrections
 │   ├── test_golden.py          # each fixture renders byte-identical to docs/examples/
+│   ├── test_pii_guard.py       # pii_guard flags records and IDs, passes placeholders
 │   └── test_translate.py       # end-to-end (skipped if no index is built)
 ├── docs/
 │   ├── data-sources.md         # research inventory of data sources
 │   ├── design/                 # design docs (multi-document input)
 │   └── examples/               # generated reports for each DD-214 fixture
 └── scripts/
-    └── fetch_public_data.py    # download the extra research and evaluation datasets
+    ├── fetch_public_data.py    # download the extra research and evaluation datasets
+    └── pii_guard.py            # fail on committed records, SSNs and DoD IDs
 ```
 
 ---
@@ -545,10 +552,16 @@ v2c-translator/
 ```bash
 uv sync                                   # installs runtime + dev group (pytest, ruff, reportlab)
 uv run dd214kw build-index --download     # needed for end-to-end tests
-uv run pytest                             # 58 tests
+uv run pytest                             # 63 tests
 uv run ruff check src tests scripts
 uv run ruff format src tests scripts
+uv run python scripts/pii_guard.py        # no records, SSNs or DoD IDs in tracked files
 ```
+
+CI runs on every pull request and on pushes to `main`: ruff, the PII guard, the tests on
+Python 3.12 and 3.13 with the index built, and `pip-audit` over `uv.lock`. A red check
+blocks the merge. To run the guard on staged files before each commit, install
+[pre-commit](https://pre-commit.com) and run `pre-commit install`.
 
 - **Python 3.12+**, managed with **uv**; linted and formatted with **ruff** (line length 100).
 - Runtime dependencies: `httpx`, `openpyxl`, `pypdf`, `rapidfuzz`, `rich`. OCR extras:
@@ -556,8 +569,9 @@ uv run ruff format src tests scripts
 - **Test fixtures are synthetic.** They use fictional names and placeholder IDs. Never
   commit a real DD-214, even a redacted one, to this repository.
 - End-to-end tests read the index from `$DD214KW_INDEX` (or the default path) and are
-  skipped when it doesn't exist, so the parser tests still run in CI without downloading
-  data. One test renders a fixture to PDF with `reportlab` to exercise the PDF path.
+  skipped when it doesn't exist, so the parser tests run without downloading data. CI
+  builds the index, so they never skip there. One test renders a fixture to PDF with
+  `reportlab` to exercise the PDF path.
 
 Regenerate the example reports after changing scoring or rules:
 
