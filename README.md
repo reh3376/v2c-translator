@@ -224,9 +224,10 @@ Full structured output for downstream systems (resume builders, job matching, an
 
 ```jsonc
 {
-  "record":   { "form_version": "2022", "branch": "Navy", "pay_grade": "E6", ... },
+  "profile":  { "context": { "branch": "Navy", "pay_grade": "E6", ... }, "occupations": [...], ... },
+  "documents": [{ "doc_type": "dd214", "doc_id": "…", "layout": "2022", "notes": [] }],
   "matches": [{
-      "specialty": { "raw": "ELECTRONICS TECHNICIAN (ET) 8 YRS 6 MOS", "months": 102 },
+      "specialty": { "title": "ELECTRONICS TECHNICIAN (ET) 8 YRS 6 MOS", "months": 102, ... },
       "svc": "N", "code": "ET", "title": "Electronics Technician", "method": "code",
       "occupations": [
         { "onet": "49-2094.00", "weight": 1.0, "sources": ["dmdc"],
@@ -271,8 +272,8 @@ Full structured output for downstream systems (resume builders, job matching, an
 ```mermaid
 flowchart LR
     A[DD-214<br/>PDF / scan / txt / JSON] --> B[extract.py<br/>text layer · form fields · OCR]
-    B --> C[parse.py<br/>label-based segmentation]
-    C --> D[ServiceRecord<br/>branch · grade · specialties ·<br/>education · awards · service time]
+    B --> C[extractors/ + parse.py<br/>label-based segmentation<br/>→ facts with sources]
+    C --> D[resolve.py → Profile<br/>branch · grade · specialties ·<br/>education · awards · service time]
     D --> E[translate.py<br/>code / variant / title match]
     E -->|DMDC crosswalk<br/>+ COOL + CitM| F[Weighted O*NET<br/>occupations]
     F -->|O*NET 31.0| G[Scored keywords<br/>titles · skills · knowledge ·<br/>technologies · activities]
@@ -451,16 +452,21 @@ v2c-translator/
 ├── src/dd214kw/
 │   ├── cli.py                  # argparse CLI: build-index | translate | lookup
 │   ├── extract.py              # PDF text layer, form fields, OCR fallback
-│   ├── parse.py                # label-based DD-214 parser (2000 + 2022 layouts), JSON input
+│   ├── extractors/             # detect() + DD-214 extractors (text, JSON) emitting facts
+│   ├── parse.py                # label-based DD-214 field parsers (2000 + 2022 layouts)
+│   ├── evidence.py             # fact kinds, Source provenance, scrub()
+│   ├── resolve.py              # resolve(facts) -> Profile: dedup and conflict policy
 │   ├── translate.py            # code matching, occupation weighting, keyword scoring
 │   ├── rules.py                # pay grade / course / award / service-time rule tables
 │   ├── index.py                # SQLite index build + query (DMDC + O*NET)
-│   ├── models.py               # dataclasses: ServiceRecord, KeywordReport, ...
+│   ├── models.py               # dataclasses: KeywordReport, Duration, ...
 │   ├── render.py               # rich / Markdown / JSON / ATS renderers
 │   └── data/analog_55.csv      # civilian analogs for military-only SOC 55-xxxx
 ├── tests/
 │   ├── fixtures/               # synthetic DD-214s: Army 2000, Navy 2022, AF + USMC JSON
 │   ├── test_parse.py           # parser, rules, privacy (no index needed)
+│   ├── test_evidence.py        # fact kinds, extraction, PII scrubbing
+│   ├── test_resolve.py         # resolution policy, from hand-made facts
 │   └── test_translate.py       # end-to-end (skipped if no index is built)
 ├── docs/
 │   ├── data-sources.md         # research inventory of data sources

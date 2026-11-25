@@ -1,14 +1,15 @@
 """Rule-based keywords from pay grade, military education, decorations and service time.
 
 These complement the O*NET-derived keywords. Every rule is a plain table so it can be
-reviewed and edited; keywords are only emitted when the DD-214 shows direct evidence.
+reviewed and edited; keywords are only emitted when a document shows direct evidence.
 """
 
 from __future__ import annotations
 
 import re
 
-from .models import Keyword, ServiceRecord
+from .models import Keyword
+from .resolve import Profile
 
 # --------------------------------------------------------------------------- pay grade
 
@@ -267,28 +268,23 @@ def _add(out: dict[str, Keyword], cat: str, term: str, score: float, source: str
         out[key] = Keyword(term=term, category=cat, score=score, sources=[source])
 
 
-def _award_count(s: str) -> int:
-    if m := re.search(r"\((\d+)\)|(\d+)(?:ST|ND|RD|TH)?\s*(?:AWARD|AWD|OLC|OAK)", s):
-        return int(m.group(1) or m.group(2))
-    return 1
-
-
-def rule_keywords(rec: ServiceRecord) -> list[Keyword]:
+def rule_keywords(profile: Profile) -> list[Keyword]:
     out: dict[str, Keyword] = {}
+    ctx = profile.context
 
     # Pay grade -> leadership scope
-    if pg := rec.pay_grade:
+    if pg := ctx and ctx.pay_grade:
         for pat, terms in LEADERSHIP_BY_GRADE:
             if re.fullmatch(pat, pg):
                 for t in terms:
                     _add(out, "leadership", t, 0.8, f"pay grade {pg}")
 
     # Military education
-    for c in rec.education:
+    for c in (r.value for r in profile.training):
         u = c.title.upper()
         if IGNORE_COURSE_RE.search(u):
             continue
-        label = smart_title(c.title) + (f" ({c.year})" if c.year else "")
+        label = smart_title(c.title) + (f" ({c.completed.year})" if c.completed else "")
         weight = 0.6 + min((c.weeks or 1) / 20, 0.3)
         _add(out, "training", label, weight, "military education")
         for pat, terms in COURSE_RULES:
@@ -299,13 +295,14 @@ def rule_keywords(rec: ServiceRecord) -> list[Keyword]:
 
     # Decorations
     perf = 0
-    for d in rec.decorations:
+    for a in (r.value for r in profile.awards):
+        d = a.name.upper()
         if PERFORMANCE_AWARD_RE.search(d):
-            perf += _award_count(d)
+            perf += a.count
         for pat, terms in AWARD_RULES:
             if re.search(pat, d):
                 for t in terms:
-                    _add(out, "recognition", t, 0.5, f"award: {smart_title(d)}")
+                    _add(out, "recognition", t, 0.5, f"award: {smart_title(a.name)}")
     if perf:
         _add(
             out,
@@ -316,20 +313,19 @@ def rule_keywords(rec: ServiceRecord) -> list[Keyword]:
         )
 
     # Record of service
-    if rec.branch:
-        _add(out, "experience", f"U.S. {rec.branch} Veteran", 1.0, "block 2")
-    months = rec.net_active.total_months if rec.net_active else 0
-    if rec.prior_active:
-        months += rec.prior_active.total_months
+    if ctx and ctx.branch:
+        _add(out, "experience", f"U.S. {ctx.branch} Veteran", 1.0, ctx.source.locator)
+    time = profile.service_time
+    months = sum(time[k].total_months for k in ("net_active", "prior_active") if k in time)
     if not months:
-        months = sum(s.months or 0 for s in rec.specialties)
+        months = sum(o.value.months or 0 for o in profile.occupations)
     if months >= 12:
         yrs = months // 12
         _add(out, "experience", f"{yrs}+ Years Professional Experience", 0.9, "record of service")
-    if rec.foreign_service and not rec.foreign_service.is_zero:
+    if "foreign" in time and not time["foreign"].is_zero:
         _add(out, "experience", "International Operations", 0.6, "foreign service time")
         _add(out, "experience", "Cross-Cultural Collaboration", 0.5, "foreign service time")
-    if rec.sea_service and not rec.sea_service.is_zero:
+    if "sea" in time and not time["sea"].is_zero:
         _add(out, "experience", "Maritime Operations", 0.6, "sea service time")
 
     return list(out.values())

@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from rich.console import Console
 
 from . import __version__
-from .extract import ExtractionError, load_text
+from .evidence import ServiceContext
+from .extract import ExtractionError
+from .extractors import read
 from .index import DEFAULT_INDEX, Index, build_index, download
-from .parse import parse_json, parse_text
 from .render import print_rich, to_ats, to_json, to_markdown
+from .resolve import resolve
 from .translate import ALL_PRIMARY, BRANCH_SVCS, translate
 
 err = Console(stderr=True)
@@ -30,17 +32,15 @@ def _cmd_build(a: argparse.Namespace) -> int:
 
 
 def _cmd_translate(a: argparse.Namespace) -> int:
-    if a.json_input or a.file.suffix.lower() == ".json":
-        rec = parse_json(json.loads(a.file.read_text()))
-    else:
-        try:
-            rec = parse_text(load_text(a.file, ocr=a.ocr))
-        except ExtractionError as e:
-            err.print(f"[red]{e}[/]")
-            return 2
+    try:
+        doc, facts = read(a.file, ocr=a.ocr, json_input=a.json_input)
+    except ExtractionError as e:
+        err.print(f"[red]{e}[/]")
+        return 2
     if a.branch:
-        rec.branch = a.branch
-    report = translate(Index(a.index), rec, top=a.top)
+        facts = [replace(f, branch=a.branch) if isinstance(f, ServiceContext) else f for f in facts]
+    report = translate(Index(a.index), resolve(facts), top=a.top)
+    report = replace(report, documents=[doc], warnings=[*doc.notes, *report.warnings])
 
     match a.format:
         case "json":

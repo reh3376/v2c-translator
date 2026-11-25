@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 
 from dd214kw.cli import main
+from dd214kw.extractors import read
 from dd214kw.index import DEFAULT_INDEX, Index
-from dd214kw.parse import parse_json, parse_text
+from dd214kw.resolve import resolve
 from dd214kw.translate import translate
 
 FIX = Path(__file__).parent / "fixtures"
@@ -24,7 +25,7 @@ def _terms(report, cat):
 
 
 def test_army_codes_and_military_only_soc(index):
-    r = translate(index, parse_text((FIX / "army_2000.txt").read_text()))
+    r = translate(index, resolve(read(FIX / "army_2000.txt")[1]))
     assert [(m.code, m.method) for m in r.matches] == [
         ("11B", "code-variant"),
         ("92Y", "code-variant"),
@@ -35,7 +36,7 @@ def test_army_codes_and_military_only_soc(index):
 
 
 def test_navy_title_and_parenthetical_rating(index):
-    r = translate(index, parse_text((FIX / "navy_2022.txt").read_text()))
+    r = translate(index, resolve(read(FIX / "navy_2022.txt")[1]))
     assert [m.code for m in r.matches] == ["ET", "IT"]
     assert "Network and Computer Systems Administrators" in _terms(r, "job_titles") or any(
         "Network" in t for t in _terms(r, "job_titles")
@@ -44,19 +45,19 @@ def test_navy_title_and_parenthetical_rating(index):
 
 
 def test_airforce_obsolete_afsc(index):
-    r = translate(index, parse_json(json.loads((FIX / "airforce.json").read_text())))
+    r = translate(index, resolve(read(FIX / "airforce.json")[1]))
     m = r.matches[0]
     assert m.code == "3D172" and m.occupations  # retired 2023 AFSC still resolves
 
 
 def test_marines(index):
-    r = translate(index, parse_json(json.loads((FIX / "marines.json").read_text())))
+    r = translate(index, resolve(read(FIX / "marines.json")[1]))
     assert [m.code for m in r.matches] == ["0311", "3531"]
     assert any("Truck" in t or "Driver" in t for t in _terms(r, "job_titles"))
 
 
 def test_ats_terms_are_short(index):
-    r = translate(index, parse_text((FIX / "army_2000.txt").read_text()))
+    r = translate(index, resolve(read(FIX / "army_2000.txt")[1]))
     ats = r.ats_keywords(40)
     assert 20 <= len(ats) <= 40
     assert all("," not in t and len(t.split()) <= 6 for t in ats)
@@ -65,7 +66,7 @@ def test_ats_terms_are_short(index):
 def test_cli_json(capsys):
     assert main(["translate", str(FIX / "navy_2022.txt"), "-f", "json"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["record"]["branch"] == "Navy" and out["ats_keywords"]
+    assert out["profile"]["context"]["branch"] == "Navy" and out["ats_keywords"]
 
 
 def test_pdf_text_layer(tmp_path):
