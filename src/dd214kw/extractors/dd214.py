@@ -38,6 +38,7 @@ from ..parse import (
     pay_grade_from_rank,
     segment,
 )
+from .dd214_layout import read_form
 
 # Fields that hold facts, and their block numbers for Source locators. The 2022 form
 # renumbered most blocks; with an unknown layout, the locator is the field name.
@@ -137,7 +138,8 @@ class Dd214:
         return 0.5 if any(k in segs for k in FIELDS) else 0.0
 
     def extract(self, content: Content, source: SourceFactory) -> tuple[Document, list[Fact]]:
-        text = content.text
+        form = read_form(content.words)
+        text = form.text or content.text
         segs = segment(text)
         layout = detect_version(text)
         blocks = BLOCKS[layout]
@@ -168,7 +170,7 @@ class Dd214:
             ),
         ]
 
-        notes = []
+        notes = list(form.notes)
         if layout == "unknown":
             notes.append("Could not identify the DD-214 layout; results may be incomplete.")
         if not branch:
