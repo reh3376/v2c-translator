@@ -4,7 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { KEYWORD_CATEGORIES, type Report, type SpecialtyMatch } from "@/engine";
 import { CATEGORY_LABELS, documentLabel, downloadName, formatDuration, formatMonths } from "./format";
-import { disclose, enter, item, pressable, stagger } from "./motion";
+import { disclose, enter, item, pressable, staggerInView } from "./motion";
+import { useAnimated } from "./use-animated";
 
 /** Occupations shown before the reader asks for the rest. */
 const SHOWN_OCCUPATIONS = 5;
@@ -31,6 +32,7 @@ export function ReportView({
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const reduced = useReducedMotion() ?? false;
+  const animated = useAnimated();
 
   useEffect(() => heading.current?.focus(), [report]);
 
@@ -95,7 +97,7 @@ export function ReportView({
             report.keywords[category].length > 0 ? (
               <section key={category} className="keyword-group" aria-labelledby={`keywords-${category}`}>
                 <h4 id={`keywords-${category}`}>{CATEGORY_LABELS[category]}</h4>
-                <motion.ul className="chips" {...stagger(reduced)}>
+                <motion.ul className="chips" {...staggerInView(animated, reduced)}>
                   {report.keywords[category].map((keyword, i) => (
                     <motion.li key={`${keyword.term}-${i}`} {...item(reduced)}>
                       {keyword.term}
