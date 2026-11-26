@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="sf-space" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#071a24" />
+      <stop offset="1" stop-color="#0e343e" />
+    </linearGradient>
+    <linearGradient id="sf-earth" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#195c66" />
+      <stop offset="1" stop-color="#092e36" />
+    </linearGradient>
+  </defs>
+  <circle data-plane="mid" cx="240" cy="572" r="410" fill="none" stroke="#5aa1ab" stroke-width="12" opacity="0.2" />
+  <circle data-plane="mid" cx="240" cy="572" r="404" fill="none" stroke="#75aeb6" stroke-width="4" opacity="0.4" />
+  <circle data-plane="mid" cx="240" cy="572" r="402" fill="url(#sf-earth)" />
+  <g data-plane="mid" fill="#91b1b3" opacity="0.14">
+    <ellipse cx="160" cy="216" rx="78" ry="12" />
+    <ellipse cx="330" cy="246" rx="96" ry="14" />
+    <ellipse cx="238" cy="290" rx="120" ry="16" />
+  </g>
+</svg>

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <!-- A formation flyover: three swept-wing silhouettes with contrails, drawn where the
+       formation settles mid-frame. No marking, number or insignia, and nothing is carried. -->
+
+  <defs>
+    <g id="pass-jet">
+      <path d="M0-4h60l22 2 6 2-6 2-22 2H0Z" />
+      <path d="M56-3L30-34h11l28 30Z" />
+      <path d="M56 3L30 34h11l28-30Z" />
+      <path d="M12-3L2-16h8l12 12Z" />
+      <path d="M12 3L2 16h8l12-12Z" />
+    </g>
+  </defs>
+
+  <g data-actor="flight">
+    <g stroke="#f4f8f6" fill="none" opacity="0.4">
+      <path d="M60 96h118" stroke-width="3.5" />
+      <path d="M126 74h108" stroke-width="2.6" />
+      <path d="M190 112h98" stroke-width="2.2" />
+    </g>
+    <g transform="translate(180 96) scale(0.55)" fill="#15313c">
+      <use href="#pass-jet" />
+    </g>
+    <g transform="translate(238 74) scale(0.47)" fill="#19394a">
+      <use href="#pass-jet" />
+    </g>
+    <g transform="translate(292 112) scale(0.41)" fill="#1d4150">
+      <use href="#pass-jet" />
+    </g>
+  </g>
+</svg>

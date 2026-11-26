@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <!-- One walking silhouette, standing on the origin, 27 units tall. Placed and sized by the
+         transform on each actor, so every figure on the page is the same drawing. -->
+    <g id="walker">
+      <circle cx="0" cy="-23" r="4" />
+      <path d="M-4-18h8l2 10h-3l2 8h-3l-2-7-3 7h-3l2-8h-3Z" />
+    </g>
+  </defs>
+  <g data-actor="march-b" transform="translate(56 292) scale(1.15)" fill="#122b33">
+    <use href="#walker" />
+  </g>
+</svg>

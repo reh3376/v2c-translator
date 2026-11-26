@@ -11,21 +11,21 @@
     </linearGradient>
   </defs>
 
-  <rect width="480" height="200" fill="url(#navy-sky)" />
-  <circle cx="366" cy="170" r="27" fill="#4e4424" opacity="0.9" />
-  <rect y="178" width="480" height="22" fill="#424a48" opacity="0.55" />
+  <rect data-plane="sky" width="480" height="200" fill="url(#navy-sky)" />
+  <circle data-plane="sky" cx="366" cy="170" r="27" fill="#4e4424" opacity="0.9" />
+  <rect data-plane="sky" y="178" width="480" height="22" fill="#424a48" opacity="0.55" />
 
-  <rect y="200" width="480" height="120" fill="url(#navy-sea)" />
-  <g fill="#1d4041" opacity="0.5">
+  <rect data-plane="sky" y="200" width="480" height="120" fill="url(#navy-sea)" />
+  <g data-plane="sky" fill="#1d4041" opacity="0.5">
     <rect x="352" y="206" width="30" height="3" rx="1.5" />
     <rect x="344" y="215" width="46" height="3" rx="1.5" />
     <rect x="334" y="226" width="66" height="3" rx="1.5" />
     <rect x="322" y="240" width="90" height="4" rx="2" />
   </g>
-  <path d="M0 252c84-10 142 8 228 0s166-14 252-4v72H0Z" fill="#001c22" />
-  <path d="M0 286c96-8 150 10 240 2s148-12 240-6v38H0Z" fill="#00171d" />
+  <path data-plane="fore" d="M0 252c84-10 142 8 228 0s166-14 252-4v72H0Z" fill="#001c22" />
+  <path data-plane="fore" d="M0 286c96-8 150 10 240 2s148-12 240-6v38H0Z" fill="#00171d" />
 
-  <g fill="#03141a">
+  <g data-plane="mid" fill="#03141a">
     <path d="M112 197h192l-16 13H128Z" />
     <path d="M134 190h22v7h-22Z" />
     <path d="M184 176h46v21h-46Z" />
@@ -35,5 +35,5 @@
     <path d="M197 148h21v3h-21Z" />
     <path d="M265 186h20v11h-20Z" />
   </g>
-  <path d="M292 206c18 2 34 5 44 9-20 2-38 1-54-2Z" fill="#394847" opacity="0.6" />
+  <path data-plane="mid" d="M292 206c18 2 34 5 44 9-20 2-38 1-54-2Z" fill="#394847" opacity="0.6" />
 </svg>

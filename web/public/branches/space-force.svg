@@ -10,9 +10,9 @@
     </linearGradient>
   </defs>
 
-  <rect width="480" height="320" fill="url(#sf-space)" />
+  <rect data-plane="sky" width="480" height="320" fill="url(#sf-space)" />
 
-  <g fill="#e2ecea">
+  <g data-plane="sky" fill="#e2ecea">
     <circle cx="44" cy="40" r="1.6" opacity="0.9" />
     <circle cx="118" cy="26" r="1" opacity="0.6" />
     <circle cx="176" cy="62" r="1.4" opacity="0.8" />
@@ -27,16 +27,16 @@
     <circle cx="404" cy="140" r="1.2" opacity="0.6" />
   </g>
 
-  <circle cx="240" cy="572" r="410" fill="none" stroke="#7fcdd8" stroke-width="12" opacity="0.2" />
-  <circle cx="240" cy="572" r="404" fill="none" stroke="#9fdee7" stroke-width="4" opacity="0.4" />
-  <circle cx="240" cy="572" r="402" fill="url(#sf-earth)" />
-  <g fill="#bfe2e4" opacity="0.14">
+  <circle data-plane="mid" cx="240" cy="572" r="410" fill="none" stroke="#7fcdd8" stroke-width="12" opacity="0.2" />
+  <circle data-plane="mid" cx="240" cy="572" r="404" fill="none" stroke="#9fdee7" stroke-width="4" opacity="0.4" />
+  <circle data-plane="mid" cx="240" cy="572" r="402" fill="url(#sf-earth)" />
+  <g data-plane="mid" fill="#bfe2e4" opacity="0.14">
     <ellipse cx="160" cy="216" rx="78" ry="12" />
     <ellipse cx="330" cy="246" rx="96" ry="14" />
     <ellipse cx="238" cy="290" rx="120" ry="16" />
   </g>
 
-  <g>
+  <g data-plane="fore">
     <rect x="296" y="106" width="36" height="13" rx="2" fill="#4c8491" />
     <rect x="296" y="106" width="36" height="13" rx="2" fill="none" stroke="#a6cdd3" stroke-width="1.5" />
     <path d="M308 106v13M320 106v13" stroke="#a6cdd3" stroke-width="1" />

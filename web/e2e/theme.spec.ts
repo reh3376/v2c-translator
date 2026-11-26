@@ -40,15 +40,20 @@ test("shows the night drawings in the dark, and only those", async ({ browser })
   const page = await context.newPage();
   await page.goto("/");
 
+  // Every picture is three drawn planes, and each plane is in the markup twice. Only the drawings
+  // for the theme in force are shown, so what is on screen is what this asserts.
   const band = page.getByRole("region", { name: "The six services" });
   await expect(band.getByRole("img")).toHaveCount(6);
-  for (const picture of await band.getByRole("img").all()) {
-    await expect(picture).toHaveAttribute("src", /-dark\.svg$/);
+  const shown = band.locator("img:visible");
+  await expect(shown).toHaveCount(18);
+  for (const source of await shown.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("src")))) {
+    expect(source).toMatch(/-dark\.svg$/);
   }
 
   await page.getByRole("radio", { name: "Light" }).check();
-  for (const picture of await band.getByRole("img").all()) {
-    await expect(picture).toHaveAttribute("src", /(?<!-dark)\.svg$/);
+  await expect(shown).toHaveCount(18);
+  for (const source of await shown.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("src")))) {
+    expect(source).toMatch(/(?<!-dark)\.svg$/);
   }
 
   await context.close();

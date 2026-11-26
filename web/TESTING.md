@@ -22,15 +22,61 @@ Run these steps on your own computer before you merge a change to `web/`.
 
 ## The branch pictures
 
-9. Reload the page and look at the row of six pictures under the headline. Expected: Navy, Coast Guard, Marine Corps, Army, Air Force and Space Force, in that order, with the horizon carrying across them from sea level to orbit. Every picture draws; none is a broken image. None shows a service seal, emblem, logo or insignia. The line underneath reads "Drawn for this page, sea level to orbit. No service seal, emblem or logo is used."
+9. Reload the page and look at the row of six pictures under the headline. Expected: Navy, Coast Guard, Marine Corps, Army, Air Force and Space Force, in that order, with the horizon carrying across them from sea level to orbit. Every picture draws; none is a broken image, and none has a visible seam, gap or sliver of a different colour along any edge. None shows a service seal, emblem, logo or insignia. The line underneath reads "Drawn for this page, sea level to orbit. No service seal, emblem or logo is used. Press one to watch its scene."
 10. Click **Try with sample documents**. Expected: the Army picture is marked with a warm rule and the caption "From your documents", the other five step back, and the line under the row reads "Your documents name the Army."
-11. Hover the pointer over each picture. Expected: a small lift, and nothing else. They are not links, so clicking one does nothing.
-12. Turn the computer's Wi-Fi off and reload. Expected: the page and all six pictures still load. Nothing on the page comes from another site.
+11. Turn the computer's Wi-Fi off and reload. Expected: the page and all six pictures still load. Nothing on the page comes from another site.
+
+## The depth in the pictures
+
+Each picture is three drawn planes, stacked: sky, subject, foreground.
+
+12. Reload at full width and scroll slowly so the row of pictures travels from the bottom of the
+    window to the top. Expected: within each picture the sky, the subject and the near ground
+    slide by slightly different amounts, so the picture reads as having depth. Nothing travels
+    far: the whole effect is a few pixels. No edge of any plane ever becomes visible, and the
+    captions under the pictures do not move at all.
+13. Move the pointer slowly from the left edge of one picture to the right edge. Expected: the
+    near ground leans further than the sky, and taking the pointer away settles it back rather
+    than snapping it.
+14. Scroll the row off the top of the window and back. Expected: nothing jumps, and no picture
+    is ever drawn in a half-moved state when it comes back.
+
+## The six scenes
+
+Each picture is a button. Pressing it plays that branch's scene once.
+
+15. Press each picture in turn and watch it to the end. Expected, in order:
+
+    | Branch | The scene | About |
+    | --- | --- | --- |
+    | Navy | A pennant breaks out at the mast, then three puffs of white smoke rise from the forward gun and drift out to open sea | 2.9 s |
+    | Coast Guard | The small boat comes alongside, then two crew step across to the cutter's after deck | 3.0 s |
+    | Marine Corps | Three Marines come down the ramp and walk up the sand, the nearest the largest | 2.7 s |
+    | Army | A tracked carrier pulls up in front of the truck, its rear ramp drops, and three soldiers step down behind it | 3.3 s |
+    | Air Force | Three swept-wing silhouettes cross the frame in formation, trailing contrails | 2.4 s |
+    | Space Force | A map grid comes up on the earth, a soft beam sweeps across it, and three status markers settle into view | 3.2 s |
+
+    In every one: nothing is aimed at anything, no weapon, round, flame, explosion, target or
+    casualty is drawn, and no seal, emblem, logo, insignia or unit marking appears anywhere.
+    Figures are plain silhouettes and no face is drawn. When the scene ends, the picture is
+    exactly as it was before it started.
+16. Press a picture again while it is still playing. Expected: the scene starts over from the
+    beginning. Nothing is left behind from the run you interrupted.
+17. Press one picture, and while it is playing press a second. Expected: both play, each at its
+    own pace, and neither disturbs the other.
+18. Watch the caption under a picture while its scene plays. Expected: it does not move, and
+    neither does anything else on the page.
+19. Put the mouse aside. Tab to a picture. Expected: a focus ring is drawn just inside the frame
+    and is not clipped at any edge. Press Enter: the scene plays. Press Space: it plays again.
+    Focus stays on the picture throughout.
+20. Click **Try with sample documents**, then press the Army picture. Expected: the scene plays,
+    and the Army picture stays marked with its warm rule and "From your documents" caption while
+    it does.
 
 ## The resources
 
-13. Scroll to **Resources for veterans**. Expected: three groups, "Your records", "Work and transition" and "Benefits", then the **Veterans Crisis Line** panel reading "Dial 988, then press 1. Or text 838255."
-14. Click every link in turn. Expected: each opens in a **new tab**, this page stays where it was, and each lands on the site its name promises:
+21. Scroll to **Resources for veterans**. Expected: three groups, "Your records", "Work and transition" and "Benefits", then the **Veterans Crisis Line** panel reading "Dial 988, then press 1. Or text 838255."
+22. Click every link in turn. Expected: each opens in a **new tab**, this page stays where it was, and each lands on the site its name promises:
 
     | Link | Site |
     | --- | --- |
@@ -51,61 +97,61 @@ Run these steps on your own computer before you merge a change to `web/`.
 
 ## The motion, with reduced motion off
 
-15. Reload and click **Try with sample documents**. Expected: a thin bar sweeps under the buttons while the report is built, the report fades up, and the keyword chips arrive in a quick run rather than all at once. Nothing jumps, and no text moves while you are reading it.
-16. Drag a file over the drop zone without letting go. Expected: the border turns solid and the zone swells very slightly. Drag the file away and it settles back.
-17. In a **Military specialties** row that has one, press **Show 3 more**. Expected: the extra occupations open in about a fifth of a second and the button reads **Show fewer**. Press it again and they close as smoothly.
-18. Hover and press a resource link and a button. Expected: a small, quick response to each, under a fifth of a second.
+23. Reload and click **Try with sample documents**. Expected: a thin bar sweeps under the buttons while the report is built, the report fades up, and the keyword chips arrive in a quick run rather than all at once. Nothing jumps, and no text moves while you are reading it.
+24. Drag a file over the drop zone without letting go. Expected: the border turns solid and the zone swells very slightly. Drag the file away and it settles back.
+25. In a **Military specialties** row that has one, press **Show 3 more**. Expected: the extra occupations open in about a fifth of a second and the button reads **Show fewer**. Press it again and they close as smoothly.
+26. Hover and press a resource link and a button. Expected: a small, quick response to each, under a fifth of a second.
 
 ## The motion, with reduced motion on
 
-19. Turn reduced motion on. On macOS: **System Settings > Accessibility > Display > Reduce motion**. On Windows: **Settings > Accessibility > Visual effects**, then turn **Animation effects** off. On GNOME: **Settings > Accessibility > Reduce Animation**.
-20. Reload the page and repeat steps 15 to 18. Expected: everything still works and every part of the report appears, but nothing slides, lifts, swells or sweeps. The progress bar fills and sits still. The disclosure opens at once. Hovering a picture or a link changes nothing but the usual link styling.
-21. Turn reduced motion back off.
+27. Turn reduced motion on. On macOS: **System Settings > Accessibility > Display > Reduce motion**. On Windows: **Settings > Accessibility > Visual effects**, then turn **Animation effects** off. On GNOME: **Settings > Accessibility > Reduce Animation**.
+28. Reload the page and repeat steps 23 to 26. Expected: everything still works and every part of the report appears, but nothing slides, lifts, swells or sweeps. The progress bar fills and sits still. The disclosure opens at once. Hovering a picture or a link changes nothing but the usual link styling.
+29. Turn reduced motion back off.
 
 ## Mobile layout
 
-22. Open the browser's responsive mode (Safari: **Develop > Enter Responsive Design Mode**; Chrome and Firefox: **F12**, then the device-toolbar button) and set the width to 390 px.
-23. Walk the page from top to bottom. Expected: the six pictures sit two across in three rows, the drop zone and the "Stays on this computer" note stack, each specialty becomes a block instead of a table row that scrolls sideways, and the resource groups stack in one column. Nothing is cut off and nothing needs sideways scrolling.
-24. Repeat at 768 px. Expected: the pictures sit three across in two rows, and the rest still reads cleanly.
+30. Open the browser's responsive mode (Safari: **Develop > Enter Responsive Design Mode**; Chrome and Firefox: **F12**, then the device-toolbar button) and set the width to 390 px.
+31. Walk the page from top to bottom. Expected: the six pictures sit two across in three rows, the drop zone and the "Stays on this computer" note stack, each specialty becomes a block instead of a table row that scrolls sideways, and the resource groups stack in one column. Nothing is cut off and nothing needs sideways scrolling.
+32. Repeat at 768 px. Expected: the pictures sit three across in two rows, and the rest still reads cleanly.
 
 ## Keyboard only
 
-25. Reload at full width and put the mouse aside. Tab from the top of the page to the bottom. Expected: focus is visible at every stop, the order follows the page, and the pictures are skipped, because they are not controls.
-26. Tab into **Resources for veterans**. Expected: every link takes focus with a visible ring, and Enter opens it in a new tab. Close that tab and focus is where you left it.
-27. Tab to a **Show 3 more** button and press Enter. Expected: it expands, the button becomes **Show fewer**, and focus stays on it.
+33. Reload at full width and put the mouse aside. Tab from the top of the page to the bottom. Expected: focus is visible at every stop, and the order follows the page. Each of the six pictures takes focus in turn, because each one is a button that plays its scene.
+34. Tab into **Resources for veterans**. Expected: every link takes focus with a visible ring, and Enter opens it in a new tab. Close that tab and focus is where you left it.
+35. Tab to a **Show 3 more** button and press Enter. Expected: it expands, the button becomes **Show fewer**, and focus stays on it.
 
 ## Light and dark
 
-28. Reload at full width. Expected: in the top right, an **Appearance** control reading System,
+36. Reload at full width. Expected: in the top right, an **Appearance** control reading System,
     Light, Dark, with **System** chosen, and the page in whatever your computer is set to.
-29. Press **Dark**. Expected: the page crosses to dark over about a fifth of a second. The page
+37. Press **Dark**. Expected: the page crosses to dark over about a fifth of a second. The page
     behind the text is near black, the panels a shade lighter, the headings and body text light,
     the buttons and links a pale teal, the keyword chips warm on a dark brown. Nothing is grey on
     grey, and no text is hard to read.
-30. Press **Light**, then **System**.
-31. With **System** chosen, change the computer's appearance: **System Settings > Appearance >
+38. Press **Light**, then **System**.
+39. With **System** chosen, change the computer's appearance: **System Settings > Appearance >
     Dark** on macOS; **Settings > Personalisation > Colours** on Windows. Expected: the page
     follows within a moment, with no reload. Set it back and the page follows again.
-32. Press **Dark**, then reload the page. Expected: it comes back dark, and **Dark** is still
+40. Press **Dark**, then reload the page. Expected: it comes back dark, and **Dark** is still
     chosen. Watch the moment it loads: there is no white flash before it turns dark.
-33. With **Dark** chosen, set the computer's appearance to light. Expected: the page stays dark.
+41. With **Dark** chosen, set the computer's appearance to light. Expected: the page stays dark.
     Your choice wins over the computer's.
-34. Press **System** and reload. Expected: the page follows the computer again.
-35. In dark, look at the row of six pictures. Expected: six night scenes, the horizon still
+42. Press **System** and reload. Expected: the page follows the computer again.
+43. In dark, look at the row of six pictures. Expected: six night scenes, the horizon still
     carrying across them, the sun now a dim moon. Every picture draws, none is washed out or
     glowing against the dark page, and none shows a seal, emblem, logo or insignia.
-36. In dark, click **Try with sample documents**. Expected: the report reads as cleanly as in
+44. In dark, click **Try with sample documents**. Expected: the report reads as cleanly as in
     light. The Army picture is marked, the keyword chips are legible, and the **Veterans Crisis
     Line** panel still stands out.
-37. Add a text file the translator cannot read and translate again, as in step 7. Expected: the
+45. Add a text file the translator cannot read and translate again, as in step 7. Expected: the
     red row and the alert are readable against the dark page, not glaring.
-38. Put the mouse aside. Tab to the **Appearance** control. Expected: focus lands on the chosen
+46. Put the mouse aside. Tab to the **Appearance** control. Expected: focus lands on the chosen
     option with a visible ring. Left and right arrows move between System, Light and Dark, and
     the page changes as you move. Tab again leaves the group in one step.
-39. Turn reduced motion on (step 19), reload in dark and press **Light**. Expected: the page
-    changes theme at once, with no fade, and everything else behaves as in step 20. Turn reduced
+47. Turn reduced motion on (step 27), reload in dark and press **Light**. Expected: the page
+    changes theme at once, with no fade, and everything else behaves as in step 28. Turn reduced
     motion back off.
-40. Open the page in a private window with cookies and site data blocked. Expected: the control
+48. Open the page in a private window with cookies and site data blocked. Expected: the control
     still works for the session, the page still follows the computer, and nothing is remembered
     after a reload.
 
@@ -126,6 +172,46 @@ The six pictures are original illustrations. To use a public-domain DoD or DVIDS
    Update `alt` to describe the photograph. The credit is part of the type, so a photograph without one does not compile, and it is shown under the picture.
 3. Run `pnpm test`, then step 9 above.
 
+## How it works
+
+49. Scroll to **How it works** at full width and go down it at a normal reading pace. Expected:
+    three steps. In the first, the three documents turn out of a stack into a fan as the step
+    arrives, and all three labels stay readable. In the second, the blocks of the form light one
+    after another as the step travels up the window, three of them labelled. In the third, the
+    keywords arrive one after another above the string they make. The page scrolls at its normal
+    speed throughout: nothing holds the page still, nothing takes the wheel, and scrolling
+    straight past the whole section costs nothing.
+50. Scroll back up past the section and down again. Expected: nothing replays. Each step arrives
+    once.
+51. Set the width to 390 px and walk the section again. Expected: each step's picture sits under
+    its words rather than beside them, the form still lights as you scroll, nothing is pinned,
+    and nothing needs sideways scrolling.
+52. Turn reduced motion on (step 27) and reload. Expected: all three steps are complete the
+    moment they are on screen. The documents are already fanned, every block of the form is lit,
+    and every keyword is there. Nothing turns, slides or lights up as you scroll.
+
+## The summary that stays put
+
+53. With reduced motion off, at full width, click **Try with sample documents** and scroll down
+    through the report. Expected: the summary panel, with the branch, the pay grade, the net
+    active service and the documents read, stays at the top of the window while the specialties
+    and the keywords scroll under it. No text shows through it.
+54. From the keyword string at the bottom, press Shift+Tab back up to **Download Markdown**.
+    Expected: the page scrolls so the button is fully visible **above** the summary panel, not
+    hidden under it, and the focus ring is not clipped.
+55. Set the width to 390 px and scroll the report again. Expected: the summary scrolls away with
+    everything else, because on a phone it would take a third of the screen.
+
+## The scenes, with reduced motion on
+
+56. Turn reduced motion on (step 27), reload, and press each of the six pictures in turn.
+    Expected: the scene appears as a still picture of the moment after, fades up over about a
+    fifth of a second, holds, and fades away. Nothing moves, turns, grows or travels. Every
+    button still works, from the mouse and from the keyboard, and pressing again replays the
+    fade. Turn reduced motion back off.
+57. In dark, press each picture again. Expected: every scene is as legible as in light. The
+    Navy smoke is clearly lighter than the night sky behind it, and nothing glows.
+
 ## Taking the screenshots again
 
 ```bash
@@ -136,7 +222,13 @@ pnpm screenshots                # another
 
 They land in `web/docs/screenshots/`, built from the fixture report, so no real document is
 involved. Each page is shot twice, the second time with the system set to dark: the `-dark` files
-are the dark theme.
+are the dark theme. Three more sets go with the scrolling:
+
+| Files | What they show |
+| --- | --- |
+| `strip-<where>-000.png` to `-100.png` | the whole page at five points on the way down, with a report on it, for desktop light, desktop dark, mobile light, and both themes with reduced motion |
+| `scene-<branch>-light-N.png`, `-dark-N.png` | each branch's vignette, caught while it plays |
+| `scene-<branch>-reduced-1.png` | the still frame a reader who asked for less motion gets instead |
 
 ## The palette
 
@@ -144,7 +236,20 @@ are the dark theme.
 ratio it measures. `pnpm test` asserts those ratios against WCAG AA and fails if the document
 falls out of step, so changing a colour means running the tests, not re-reading this page.
 
-To change a branch picture, edit the light `.svg` in `web/public/branches/` and run `pnpm
-dark-art`, which rewrites its dark twin.
+## The branch art
+
+`web/public/branches/` holds twelve drawings, and they are the only ones edited by hand: one
+scene per branch, and one act drawing per branch holding the actors its scene moves. Everything
+under `web/public/branches/derived/` is written by `pnpm dark-art` and should never be edited:
+the dark twin of each drawing, the three depth planes of each scene, and one file per actor.
+
+- Every top-level shape in a scene carries `data-plane="sky"`, `"mid"` or `"fore"`; every one in
+  an act drawing carries `data-actor="<name>"`. A shape with neither fails the generator.
+- An actor is drawn **where it settles**, not where it comes in from. That is what lets a reader
+  who asked for less motion see the scene as a still frame with no transform at all.
+- After any change to a drawing, run `pnpm dark-art`, then `pnpm test`: `--check` and
+  `src/content/branch-art.test.ts` both fail if the derived files are stale or orphaned.
+- An actor added to a drawing needs a beat in `web/src/content/vignettes.ts`, and a beat needs an
+  actor. The tests hold both halves of that.
 
 Report pass or fail for each step in the chat.

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="navy-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9d2d6" />
+      <stop offset="0.65" stop-color="#dceae8" />
+      <stop offset="1" stop-color="#f0e8d4" />
+    </linearGradient>
+    <linearGradient id="navy-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d8189" />
+      <stop offset="1" stop-color="#17454e" />
+    </linearGradient>
+  </defs>
+  <path data-plane="fore" d="M0 252c84-10 142 8 228 0s166-14 252-4v72H0Z" fill="#14414a" />
+  <path data-plane="fore" d="M0 286c96-8 150 10 240 2s148-12 240-6v38H0Z" fill="#0f343c" />
+</svg>

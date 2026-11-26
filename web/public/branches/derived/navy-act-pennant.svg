@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <g data-actor="pennant">
+    <path d="M210 140l28 6-28 7Z" fill="#dfe9e6" />
+    <path d="M210 139h2.5v16h-2.5Z" fill="#9fb6b8" />
+  </g>
+</svg>

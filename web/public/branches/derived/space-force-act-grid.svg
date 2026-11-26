@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="sf-beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cdeef3" stop-opacity="0.42" />
+      <stop offset="1" stop-color="#cdeef3" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <g data-actor="grid" stroke="#9fdee7" fill="none" opacity="0.3">
+    <path d="M118 218c70-14 176-14 246 0" stroke-width="1.4" />
+    <path d="M96 252c80-16 206-16 288 0" stroke-width="1.4" />
+    <path d="M84 288c86-18 222-18 312 0" stroke-width="1.4" />
+    <path d="M176 206c-10 36-12 70-6 104" stroke-width="1.2" />
+    <path d="M240 202v108" stroke-width="1.2" />
+    <path d="M304 206c10 36 12 70 6 104" stroke-width="1.2" />
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="cg-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f4046" />
+      <stop offset="0.7" stop-color="#3e4849" />
+      <stop offset="1" stop-color="#464944" />
+    </linearGradient>
+    <linearGradient id="cg-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#002e35" />
+      <stop offset="1" stop-color="#001b23" />
+    </linearGradient>
+  </defs>
+  <rect data-plane="sky" width="480" height="200" fill="url(#cg-sky)" />
+  <rect data-plane="sky" y="180" width="480" height="20" fill="#434a48" opacity="0.5" />
+  <path data-plane="sky" d="M0 200v-54c26-10 48-4 66 12 14 12 26 27 36 42Z" fill="#142a2e" />
+  <path data-plane="sky" d="M0 200v-28c22-6 42 8 56 28Z" fill="#092329" />
+  <rect data-plane="sky" y="200" width="480" height="120" fill="url(#cg-sea)" />
+</svg>

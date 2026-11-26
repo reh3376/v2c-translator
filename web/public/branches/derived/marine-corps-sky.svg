@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="usmc-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b4cdd2" />
+      <stop offset="0.68" stop-color="#dcebe8" />
+      <stop offset="1" stop-color="#f3ead4" />
+    </linearGradient>
+    <linearGradient id="usmc-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b7f86" />
+      <stop offset="1" stop-color="#205962" />
+    </linearGradient>
+    <linearGradient id="usmc-sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dccb9f" />
+      <stop offset="1" stop-color="#bda576" />
+    </linearGradient>
+  </defs>
+  <rect data-plane="sky" width="480" height="200" fill="url(#usmc-sky)" />
+  <circle data-plane="sky" cx="92" cy="104" r="24" fill="#f0e2b2" opacity="0.8" />
+  <rect data-plane="sky" y="182" width="480" height="18" fill="#e5efea" opacity="0.5" />
+  <rect data-plane="sky" y="200" width="480" height="92" fill="url(#usmc-sea)" />
+  <path data-plane="sky" d="M0 228c92-10 150 8 240 0s152-10 240-2v70H0Z" fill="#1d525b" />
+</svg>

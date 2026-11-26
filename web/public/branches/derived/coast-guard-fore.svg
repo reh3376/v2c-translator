@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="cg-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#aec9d2" />
+      <stop offset="0.7" stop-color="#d7e7e8" />
+      <stop offset="1" stop-color="#eaefe6" />
+    </linearGradient>
+    <linearGradient id="cg-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a7d87" />
+      <stop offset="1" stop-color="#15414c" />
+    </linearGradient>
+  </defs>
+  <path data-plane="fore" d="M0 240c96-14 152 12 244 4s150-14 236-6v82H0Z" fill="#16434e" />
+  <path data-plane="fore" d="M0 282c94-12 150 12 240 4s152-12 240-6v40H0Z" fill="#0f333d" />
+  <g data-plane="fore" fill="#e8f4f1">
+    <path d="M176 196c-20 4-34 12-42 22 18-4 34-12 48-20Z" opacity="0.85" />
+    <path d="M330 208c26 4 46 9 60 15-28 2-54-1-76-6Z" opacity="0.6" />
+    <path d="M44 228c44-8 96 2 138 10-48 6-100 4-144-4Z" opacity="0.5" />
+    <path d="M214 258c56-8 118 6 166 16-60 4-124 2-178-8Z" opacity="0.4" />
+    <path d="M0 300c62-10 128 4 182 14H0Z" opacity="0.3" />
+  </g>
+</svg>

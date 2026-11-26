@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="af-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a3745" />
+      <stop offset="0.55" stop-color="#314347" />
+      <stop offset="1" stop-color="#434947" />
+    </linearGradient>
+    <g id="af-jet">
+      <path d="M0-5h84l32 2.5 8 2.5-8 2.5-32 2.5H0Z" />
+      <path d="M78-4L44-46h15l38 40Z" />
+      <path d="M78 4L44 46h15l38-40Z" />
+      <path d="M16-4L2-21h11l16 16Z" />
+      <path d="M16 4L2 21h11l16-16Z" />
+    </g>
+  </defs>
+  <rect data-plane="sky" width="480" height="320" fill="url(#af-sky)" />
+  <circle data-plane="sky" cx="396" cy="56" r="46" fill="#4f462b" opacity="0.4" />
+  <circle data-plane="sky" cx="396" cy="56" r="20" fill="#4f4933" opacity="0.8" />
+  <g data-plane="sky" stroke="#4d4d4d" fill="none" opacity="0.32">
+    <path d="M6 165h124" stroke-width="4" />
+    <path d="M6 175h124" stroke-width="4" />
+    <path d="M232 94h72" stroke-width="2.5" />
+    <path d="M232 100h72" stroke-width="2.5" />
+  </g>
+</svg>

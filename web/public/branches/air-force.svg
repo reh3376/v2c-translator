@@ -14,22 +14,22 @@
     </g>
   </defs>
 
-  <rect width="480" height="320" fill="url(#af-sky)" />
-  <circle cx="396" cy="56" r="46" fill="#f4e7bd" opacity="0.4" />
-  <circle cx="396" cy="56" r="20" fill="#faf0cf" opacity="0.8" />
+  <rect data-plane="sky" width="480" height="320" fill="url(#af-sky)" />
+  <circle data-plane="sky" cx="396" cy="56" r="46" fill="#f4e7bd" opacity="0.4" />
+  <circle data-plane="sky" cx="396" cy="56" r="20" fill="#faf0cf" opacity="0.8" />
 
-  <g stroke="#ffffff" fill="none" opacity="0.32">
+  <g data-plane="sky" stroke="#ffffff" fill="none" opacity="0.32">
     <path d="M6 165h124" stroke-width="4" />
     <path d="M6 175h124" stroke-width="4" />
     <path d="M232 94h72" stroke-width="2.5" />
     <path d="M232 100h72" stroke-width="2.5" />
   </g>
 
-  <use href="#af-jet" x="128" y="170" fill="#15313c" />
-  <g transform="translate(302 97) scale(0.62)" fill="#1a3a45">
+  <use data-plane="mid" href="#af-jet" x="128" y="170" fill="#15313c" />
+  <g data-plane="mid" transform="translate(302 97) scale(0.62)" fill="#1a3a45">
     <use href="#af-jet" />
   </g>
 
-  <path d="M0 262c36-26 74 6 108-12 32-18 68 16 108 0 38-15 72 18 110-2 30-15 58 14 82-2 24-16 48 8 72-4v78H0Z" fill="#ffffff" opacity="0.92" />
-  <path d="M0 292c42-16 80 10 122-2 40-12 74 14 116 4 44-10 80 12 122 2 38-9 70 8 120-6v30H0Z" fill="#d9e7e8" opacity="0.9" />
+  <path data-plane="fore" d="M0 262c36-26 74 6 108-12 32-18 68 16 108 0 38-15 72 18 110-2 30-15 58 14 82-2 24-16 48 8 72-4v78H0Z" fill="#ffffff" opacity="0.92" />
+  <path data-plane="fore" d="M0 292c42-16 80 10 122-2 40-12 74 14 116 4 44-10 80 12 122 2 38-9 70 8 120-6v30H0Z" fill="#d9e7e8" opacity="0.9" />
 </svg>
