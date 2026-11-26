@@ -486,7 +486,15 @@ So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position ins
    or `|` for 1, `S` for 5, and stray punctuation. A cell that still does not hold its 4, 2
    or 2 digits is cut out of the page image, where the file is a scan, and read again with
    tesseract as digits alone: in sparse-text mode first, then with a wider margin in black
-   and white, then magnified in single-line mode. A reading that is still not digits leaves
+   and white, then magnified in single-line mode. tesseract reads a crop with one of the
+   form's ruled lines across it as nothing at all, so the next readings whiten the lines
+   first: a row or column of the crop that is dark from end to end is a rule, which a
+   digit never is. The last reading also cuts a band as tall as a line of text, for a row
+   whose words the text layer boxed shorter than the digits on the page, or below their
+   own row. A length-of-service row whose every cell holds zeros and zero misreads and
+   nothing else, however many of them, is read as `0000 00 00` without going to the page
+   at all: the form prints that row of zeros, and no other value can read that way. A row
+   of dates is never read that way. A reading that is still not digits leaves
    the row out with a note, and where the OCR tools are not installed one note says that
    installing them would let those cells be read. It does not guess. Where rows 12a, 12b
    and 12c all read, it checks the net active service against the period between the two
