@@ -2,6 +2,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from dd214kw.evidence import OccupationHeld, Source
 from dd214kw.extractors import read
 from dd214kw.parse import (
     detect_version,
@@ -13,6 +14,7 @@ from dd214kw.resolve import resolve
 from dd214kw.rules import rule_keywords, smart_title
 
 FIX = Path(__file__).parent / "fixtures"
+SOURCE = Source("dd214", "a" * 12, "block 11", None, 1.0)
 
 
 def test_army_2000_layout():
@@ -96,6 +98,34 @@ def test_rule_keywords():
     assert ("skills", "First Aid") in terms
     perf = next(k for k in rule_keywords(rec) if k.term == "Recognized for Performance Excellence")
     assert "5 individual" in perf.sources[0]
+
+
+def _specialties_only(*months: int):
+    """A profile whose only facts are specialties: the record of service was not read."""
+    return resolve(
+        [
+            OccupationHeld(None, f"25U{i}0 SIGNAL SUPPORT SPECIALIST", m, None, None, SOURCE)
+            for i, m in enumerate(months, start=1)
+        ]
+    )
+
+
+def test_service_length_is_the_longest_specialty_when_the_record_is_not_read():
+    """Specialty periods overlap: one soldier's specialty changes as the career runs. Summed,
+    a 12-year and a 23-year entry read as 35 years of service. The longest entry is the
+    lower bound the documents support."""
+    terms = {k.term for k in rule_keywords(_specialties_only(144, 281))}
+    assert "23+ Years Professional Experience" in terms
+    assert not any("35+" in t or "41+" in t for t in terms)
+
+
+def test_service_length_says_it_is_a_lower_bound_from_one_specialty():
+    kw = next(
+        k
+        for k in rule_keywords(_specialties_only(144, 281))
+        if k.term.endswith("Years Professional Experience")
+    )
+    assert "lower bound" in kw.sources[0]
 
 
 def test_smart_title():
