@@ -41,6 +41,14 @@ LABEL_PREFIX = 24
 # loses more of its score to the same OCR noise than the whole label does, so this sits
 # below LABEL_MATCH: the piece only has to be text the label holds.
 LABEL_LINE_MATCH = 80
+# Fuzzy-match floor for the label's tail at the start of a line that goes on to a value,
+# how many characters of label that tail must hold, and how far its length may stand from
+# the label's own. See _label_tail().
+LABEL_TAIL_MATCH = 75
+MIN_LABEL_TAIL = 5
+TAIL_SLACK = 4
+# What a line must hold after the label's tail for the rest of it to be a value.
+MIN_VALUE = 4
 # Fuzzy-match floor for one of block 12's column headings, which are single words.
 HEADING_MATCH = 75
 # A page with fewer labels found than this is not read by position.
@@ -463,12 +471,42 @@ def _grouped(lines: Sequence[tuple[Word, ...]], words: Iterable[Word]) -> list[t
 def _drop_label(lines: list[tuple[Word, ...]], label: str) -> list[tuple[Word, ...]]:
     """The box's lines after its printed label, which may wrap onto several lines and in any
     order: a parenthetical the form prints last can sit on the line above the one before it.
-    So each line the label holds is dropped until one it does not hold, which is a value."""
+    So each line the label holds is dropped until one it does not hold, which is a value.
+
+    On a scan the label's last line and the first typed line are read as one line. That
+    line's own start is then the label's tail ("...periods of one or more years.)"), and is
+    taken off it; left on, the tail reads as part of the first value on the form.
+    """
     target = _squash_text(label)
     for i, line in enumerate(lines):
-        if fuzz.partial_ratio(_squash(line)[0], target) < LABEL_LINE_MATCH:
+        squashed, owner = _squash(line)
+        tail = _label_tail(squashed, target)
+        if tail and len(squashed) - tail >= MIN_VALUE:
+            value = {owner[j] for j in range(tail, len(owner))}
+            return [tuple(w for n, w in enumerate(line) if n in value), *lines[i + 1 :]]
+        if fuzz.partial_ratio(squashed, target) < LABEL_LINE_MATCH:
             return lines[i:]
     return []
+
+
+def _label_tail(squashed: str, target: str) -> int:
+    """How many characters at the start of a line the printed label's own tail covers; 0
+    when the line starts with a value.
+
+    The tail runs to the label's end, because the value follows it, so each candidate
+    length is scored against the label's last characters, give or take TAIL_SLACK for what
+    OCR dropped or added. The best score wins rather than the longest match: a longer piece
+    of the line goes on scoring against a sliding window of so long a label, and would eat
+    the value. On the reported form a garbled tail scores 80 and a line that starts with a
+    value scores at most 54.
+    """
+    best = (0.0, 0)
+    for n in range(MIN_LABEL_TAIL, min(len(squashed), len(target)) + 1):
+        widths = range(max(1, n - TAIL_SLACK), min(len(target), n + TAIL_SLACK) + 1)
+        score = max(fuzz.ratio(squashed[:n], target[len(target) - k :]) for k in widths)
+        if score > best[0]:
+            best = (score, n)
+    return best[1] if best[0] >= LABEL_TAIL_MATCH else 0
 
 
 def _squash(words: Iterable[Word]) -> tuple[str, list[int]]:
