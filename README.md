@@ -845,6 +845,9 @@ affects the output.
   - A name too garbled to read as any official award or course keeps the scanner's
     spelling, so it matches no recognition or skill rule. `ADV NCO CR, TANCOC` off a real
     scan is one such.
+  - An award or course name the block's box wrapped, where the form put no `//` between
+    its entries, is read as two entries. A time wrapped away from its entry is joined
+    back; a name is not.
   - A fillable PDF with filled form fields is read line by line, as before. Its field
     values have no position on the page.
 
