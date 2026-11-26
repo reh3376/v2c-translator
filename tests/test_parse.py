@@ -127,6 +127,71 @@ def test_an_ocr_read_separator_splits_two_merged_entries():
     ]
 
 
+# Block 13 as the scan left it, in the lines it was read in: every award garbled, one line
+# holding two awards with the "//" between them read as ") I I", one continuation marker.
+OCR_BLOCK_13 = (
+    "BRONZE STAR MEDAL\n"
+    "DEFENSE MERITORIOUS SERVICE MEDAL (2ND AWARD)\n"
+    "JOTKT SERVICE COMMENDA TL ON MEDAL\n"
+    "ARMY COMMEND A TL ON MEDAL (2ND AWARD)\n"
+    "MERITORIOUS SERVICE MEDAL (4TH AWARD\n"
+    "ARMY ACHIEVEMENT MEDAL (2ND AWARD)\n"
+    "JOL T MERLTORLOUS UNIT AWARD B 3RD AWARD) I I ARMY GOOD CONDUCT\n"
+    "CONT IN BL CK 18\n"
+    "NOTHTNG FOLLOWS"
+)
+
+
+def test_garbled_awards_read_as_the_awards_they_name(tmp_path):
+    """Every name here came off a real scan. The count stands even where OCR lost a bracket,
+    and the two awards OCR ran together are two."""
+    doc = tmp_path / "dd214.json"
+    doc.write_text(json.dumps({"form": "DD-214", "branch": "ARMY", "decorations": OCR_BLOCK_13}))
+    awards = [(a.value.name, a.value.count) for a in resolve(read(doc)[1]).awards]
+    assert awards == [
+        ("BRONZE STAR MEDAL", 1),
+        ("DEFENSE MERITORIOUS SERVICE MEDAL", 2),
+        ("JOINT SERVICE COMMENDATION MEDAL", 1),
+        ("ARMY COMMENDATION MEDAL", 2),
+        ("MERITORIOUS SERVICE MEDAL", 4),
+        ("ARMY ACHIEVEMENT MEDAL", 2),
+        ("JOINT MERITORIOUS UNIT AWARD", 3),
+        ("ARMY GOOD CONDUCT MEDAL", 1),
+    ]
+
+
+def test_an_award_keeps_the_device_it_was_given_with(tmp_path):
+    doc = tmp_path / "dd214.json"
+    doc.write_text(
+        json.dumps(
+            {
+                "form": "DD-214",
+                "decorations": "EXPERT MARKSMANSHIP BADGE WITH RIFLE BAR//ZORGLE OF HONOUR",
+            }
+        )
+    )
+    names = [a.value.name for a in resolve(read(doc)[1]).awards]
+    assert names == [
+        "EXPERT MARKSMANSHIP QUALIFICATION BADGE WITH RIFLE BAR",
+        "ZORGLE OF HONOUR",  # no official name reads like it, so the document's text stands
+    ]
+
+
+def test_a_garbled_course_reads_as_the_course_it_names():
+    titles = [c.title for c in parse_courses("BASLC LEADER COURSF, 4 WEEKS, 2012//ANCOC, 2004")]
+    assert titles == ["BASIC LEADER COURSE", "ADVANCED NONCOMMISSIONED OFFICER COURSE"]
+
+
+def test_a_course_too_garbled_to_place_keeps_the_documents_text():
+    """Both of these came off a real scan, and neither reads as a course we list. A wrong
+    course title would be a fact the document does not hold."""
+    assert [c.title for c in parse_courses(OCR_COURSES)] == [
+        "ADV NCO CR, TANCOC",
+        "AIRBORNE",
+        "SOCC J NTRUCTOR T AL NI NG CRS",
+    ]
+
+
 def test_courses_units():
     c = parse_courses("FORKLIFT OPERATOR, 3 DAYS, JUN 2018//SAFETY OFFICER COURSE, 40 HRS, 2019")
     assert c[0].title == "FORKLIFT OPERATOR" and c[0].year == 2018
