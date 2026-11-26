@@ -1,5 +1,6 @@
 import { CalmMotion } from "@/components/calm-motion";
 import { Resources } from "@/components/resources";
+import { ThemeControl } from "@/components/theme-control";
 import { Translator } from "@/components/translator";
 
 export default function Home() {
@@ -7,6 +8,7 @@ export default function Home() {
     <CalmMotion>
       <header className="masthead">
         <p className="wordmark">v2c translator</p>
+        <ThemeControl />
       </header>
       <main>
         <div className="intro">

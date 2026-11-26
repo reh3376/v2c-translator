@@ -1,0 +1,145 @@
+/*
+ * Coastal steel: the one place this app's colours are defined.
+ *
+ * Two layers, and nothing else may hold a colour:
+ *
+ *   1. Primitive ramps (--steel-*, --teal-*, --amber-*, --danger-*, --warning-*, --success-*).
+ *      Fixed hexadecimal values that mean nothing on their own. The same in both themes.
+ *   2. Semantic tokens (--color-*). What the page actually uses. Each one is declared once, as
+ *      `light-dark(light value, dark value)`, so a token cannot drift between themes: the two
+ *      values sit on the same line.
+ *
+ * `light-dark()` resolves against the element's used `color-scheme`, which is why the three
+ * states below set `color-scheme` rather than redeclaring every token. `data-theme` is written
+ * by the boot script in `layout.tsx` before first paint; with no script, and with
+ * `data-theme="system"`, `color-scheme: light dark` follows the operating system.
+ *
+ * Every pair of these tokens that the page puts together as text on a background is asserted
+ * against WCAG AA by `src/theme/contrast.test.ts`, which parses this file. Changing a stop here
+ * fails that test rather than quietly shipping unreadable text. `web/docs/palette.md` lists the
+ * tokens with both values and the measured ratios.
+ *
+ * Values marked "seed" are the ones chosen for the palette; the rest of each ramp is filled in
+ * around them.
+ */
+
+:root {
+  /* Steel: the page itself. Paper, ink, rules. */
+  --steel-0: #ffffff;
+  --steel-50: #f3f6f5; /* seed: light page background */
+  --steel-100: #e8eeed;
+  --steel-150: #e3ecea; /* seed: dark text */
+  --steel-200: #d3dddb; /* seed: light border */
+  --steel-300: #b3c3c0;
+  --steel-400: #9cb0ad; /* seed: dark secondary text */
+  --steel-450: #8ba09d;
+  --steel-500: #6f8280;
+  --steel-550: #5d6e6c;
+  --steel-600: #50605f; /* seed: light secondary text */
+  --steel-700: #394745;
+  --steel-800: #2a3837;
+  --steel-850: #1e2a29;
+  --steel-900: #152120; /* seed: dark surface, and light text */
+  --steel-950: #0d1615; /* seed: dark page background */
+
+  /* Teal: the primary. Buttons, links, focus, the wordmark. */
+  --teal-50: #ecf3f3;
+  --teal-100: #d9e8e9;
+  --teal-200: #b2d6d9;
+  --teal-300: #93d0d5; /* seed: dark link */
+  --teal-400: #7cc3c9; /* seed: dark primary */
+  --teal-500: #4e9ba3;
+  --teal-600: #2a757e;
+  --teal-700: #1e5c63; /* seed: light primary, light link */
+  --teal-800: #174a52;
+  --teal-900: #0f3338;
+  --teal-950: #0b2528;
+
+  /* Amber: the warm counterweight. Keyword chips, the branch the documents named, the crisis
+     line. Nothing else on this page earns that much attention. */
+  --amber-100: #f6e6cf; /* seed: light chip background */
+  --amber-200: #edbe7c; /* seed: dark chip text */
+  --amber-300: #e3a85b; /* seed: dark accent */
+  --amber-500: #b9782a; /* seed: light accent */
+  --amber-700: #8a5618;
+  --amber-800: #6e4310; /* seed: light chip text */
+  --amber-900: #3a2a15; /* seed: dark chip background */
+
+  /* A file that could not be read. */
+  --danger-100: #fcebe9;
+  --danger-200: #e0948d;
+  --danger-300: #f3aba3;
+  --danger-400: #d4615a;
+  --danger-700: #8f1d16;
+  --danger-800: #74332d;
+  --danger-950: #2a110f;
+
+  /* Notes the translator left on a report. */
+  --warning-100: #fff3d6;
+  --warning-200: #e1bd68;
+  --warning-300: #f0cd82;
+  --warning-700: #6b4500;
+  --warning-800: #6a5420;
+  --warning-950: #2b2008;
+
+  /* Something the reader asked for worked. */
+  --success-300: #7ed3ae;
+  --success-700: #15664a;
+
+  color-scheme: light dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: only light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: only dark;
+}
+
+:root {
+  /* Surfaces, from the page up */
+  --color-bg: light-dark(var(--steel-50), var(--steel-950));
+  --color-surface: light-dark(var(--steel-0), var(--steel-900));
+  --color-surface-raised: light-dark(var(--steel-0), var(--steel-850));
+  /* A panel set into a surface: the mono entry copied off the document. */
+  --color-surface-sunken: light-dark(var(--steel-100), var(--steel-850));
+
+  /* Text */
+  --color-text: light-dark(var(--steel-900), var(--steel-150));
+  --color-text-secondary: light-dark(var(--steel-600), var(--steel-400));
+  /* The smallest captions: an O*NET code, a photograph credit, the footer. A step quieter than
+     secondary text, and still AA at 4.5:1 on both the page and a surface. */
+  --color-text-muted: light-dark(var(--steel-550), var(--steel-450));
+
+  /* Lines. `border` rules one row of text off from the next; `border-strong` draws the edge of
+     something you can act on, so it is the one held to 3:1. */
+  --color-border: light-dark(var(--steel-200), var(--steel-800));
+  --color-border-strong: light-dark(var(--steel-500), var(--steel-500));
+
+  /* Primary */
+  --color-primary: light-dark(var(--teal-700), var(--teal-400));
+  --color-primary-hover: light-dark(var(--teal-800), var(--teal-300));
+  --color-on-primary: light-dark(var(--steel-0), var(--steel-950));
+  /* The primary as text or as a border on the page's own background. */
+  --color-primary-text: light-dark(var(--teal-800), var(--teal-300));
+  --color-primary-tint: light-dark(var(--teal-50), var(--teal-950));
+  --color-link: light-dark(var(--teal-700), var(--teal-300));
+  --color-link-hover: light-dark(var(--steel-900), var(--steel-0));
+  --color-focus: light-dark(var(--teal-700), var(--teal-400));
+
+  /* Accent */
+  --color-accent: light-dark(var(--amber-500), var(--amber-300));
+  --color-chip-bg: light-dark(var(--amber-100), var(--amber-900));
+  --color-chip-text: light-dark(var(--amber-800), var(--amber-200));
+
+  /* States */
+  --color-danger-text: light-dark(var(--danger-700), var(--danger-300));
+  --color-danger-bg: light-dark(var(--danger-100), var(--danger-950));
+  --color-danger-border: light-dark(var(--danger-200), var(--danger-800));
+  --color-danger-rule: light-dark(var(--danger-700), var(--danger-400));
+  --color-warning-text: light-dark(var(--warning-700), var(--warning-300));
+  --color-warning-bg: light-dark(var(--warning-100), var(--warning-950));
+  --color-warning-border: light-dark(var(--warning-200), var(--warning-800));
+  --color-success-text: light-dark(var(--success-700), var(--success-300));
+}

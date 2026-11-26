@@ -74,6 +74,41 @@ Run these steps on your own computer before you merge a change to `web/`.
 26. Tab into **Resources for veterans**. Expected: every link takes focus with a visible ring, and Enter opens it in a new tab. Close that tab and focus is where you left it.
 27. Tab to a **Show 3 more** button and press Enter. Expected: it expands, the button becomes **Show fewer**, and focus stays on it.
 
+## Light and dark
+
+28. Reload at full width. Expected: in the top right, an **Appearance** control reading System,
+    Light, Dark, with **System** chosen, and the page in whatever your computer is set to.
+29. Press **Dark**. Expected: the page crosses to dark over about a fifth of a second. The page
+    behind the text is near black, the panels a shade lighter, the headings and body text light,
+    the buttons and links a pale teal, the keyword chips warm on a dark brown. Nothing is grey on
+    grey, and no text is hard to read.
+30. Press **Light**, then **System**.
+31. With **System** chosen, change the computer's appearance: **System Settings > Appearance >
+    Dark** on macOS; **Settings > Personalisation > Colours** on Windows. Expected: the page
+    follows within a moment, with no reload. Set it back and the page follows again.
+32. Press **Dark**, then reload the page. Expected: it comes back dark, and **Dark** is still
+    chosen. Watch the moment it loads: there is no white flash before it turns dark.
+33. With **Dark** chosen, set the computer's appearance to light. Expected: the page stays dark.
+    Your choice wins over the computer's.
+34. Press **System** and reload. Expected: the page follows the computer again.
+35. In dark, look at the row of six pictures. Expected: six night scenes, the horizon still
+    carrying across them, the sun now a dim moon. Every picture draws, none is washed out or
+    glowing against the dark page, and none shows a seal, emblem, logo or insignia.
+36. In dark, click **Try with sample documents**. Expected: the report reads as cleanly as in
+    light. The Army picture is marked, the keyword chips are legible, and the **Veterans Crisis
+    Line** panel still stands out.
+37. Add a text file the translator cannot read and translate again, as in step 7. Expected: the
+    red row and the alert are readable against the dark page, not glaring.
+38. Put the mouse aside. Tab to the **Appearance** control. Expected: focus lands on the chosen
+    option with a visible ring. Left and right arrows move between System, Light and Dark, and
+    the page changes as you move. Tab again leaves the group in one step.
+39. Turn reduced motion on (step 19), reload in dark and press **Light**. Expected: the page
+    changes theme at once, with no fade, and everything else behaves as in step 20. Turn reduced
+    motion back off.
+40. Open the page in a private window with cookies and site data blocked. Expected: the control
+    still works for the session, the page still follows the computer, and nothing is remembered
+    after a reload.
+
 ## Swapping in a photograph
 
 The six pictures are original illustrations. To use a public-domain DoD or DVIDS photograph instead of one:
@@ -99,6 +134,17 @@ pnpm build && pnpm start        # one terminal
 pnpm screenshots                # another
 ```
 
-They land in `web/docs/screenshots/`, built from the fixture report, so no real document is involved.
+They land in `web/docs/screenshots/`, built from the fixture report, so no real document is
+involved. Each page is shot twice, the second time with the system set to dark: the `-dark` files
+are the dark theme.
+
+## The palette
+
+`web/docs/palette.md` lists every colour token with its light and dark value and the contrast
+ratio it measures. `pnpm test` asserts those ratios against WCAG AA and fails if the document
+falls out of step, so changing a colour means running the tests, not re-reading this page.
+
+To change a branch picture, edit the light `.svg` in `web/public/branches/` and run `pnpm
+dark-art`, which rewrites its dark twin.
 
 Report pass or fail for each step in the chat.

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320" role="img" aria-label="A patrol cutter with a boat on davits, running through surf past a rocky point, drawn as a flat silhouette.">
+  <defs>
+    <linearGradient id="cg-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f4046" />
+      <stop offset="0.7" stop-color="#3e4849" />
+      <stop offset="1" stop-color="#464944" />
+    </linearGradient>
+    <linearGradient id="cg-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#002e35" />
+      <stop offset="1" stop-color="#001b23" />
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="200" fill="url(#cg-sky)" />
+  <rect y="180" width="480" height="20" fill="#434a48" opacity="0.5" />
+
+  <path d="M0 200v-54c26-10 48-4 66 12 14 12 26 27 36 42Z" fill="#142a2e" />
+  <path d="M0 200v-28c22-6 42 8 56 28Z" fill="#092329" />
+
+  <rect y="200" width="480" height="120" fill="url(#cg-sea)" />
+
+  <g fill="#02141b">
+    <path d="M186 192l152 4-6 10-10 12H214l-18-14Z" />
+    <path d="M232 168h40v24h-40Z" />
+    <path d="M240 156h24v12h-24Z" />
+    <path d="M286 176h22v16h-22Z" />
+    <path d="M250 128h3v28h-3Z" />
+    <path d="M243 136h17v3h-17Z" />
+    <path d="M292 166h3v10h-3Z" />
+  </g>
+  <g fill="#011c23">
+    <path d="M296 168h24l-4 8h-16Z" />
+    <path d="M300 162h3v6h-3M313 162h3v6h-3Z" />
+  </g>
+
+  <path d="M0 240c96-14 152 12 244 4s150-14 236-6v82H0Z" fill="#001c24" />
+  <path d="M0 282c94-12 150 12 240 4s152-12 240-6v40H0Z" fill="#00171e" />
+
+  <g fill="#444b49">
+    <path d="M176 196c-20 4-34 12-42 22 18-4 34-12 48-20Z" opacity="0.85" />
+    <path d="M330 208c26 4 46 9 60 15-28 2-54-1-76-6Z" opacity="0.6" />
+    <path d="M44 228c44-8 96 2 138 10-48 6-100 4-144-4Z" opacity="0.5" />
+    <path d="M214 258c56-8 118 6 166 16-60 4-124 2-178-8Z" opacity="0.4" />
+    <path d="M0 300c62-10 128 4 182 14H0Z" opacity="0.3" />
+  </g>
+</svg>

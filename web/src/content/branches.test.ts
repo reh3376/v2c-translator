@@ -25,9 +25,11 @@ describe("the branch pictures", () => {
 
   it("are bundled with the app, so the page loads nothing from another site", () => {
     for (const panel of BRANCH_PANELS) {
-      const picture = panel.photo?.src ?? panel.illustration;
-      expect(picture.startsWith("/"), panel.name).toBe(true);
-      expect(existsSync(repoFile(`web/public${picture}`)), picture).toBe(true);
+      const pictures = panel.photo ? [panel.photo.src] : [panel.illustration, panel.illustrationDark];
+      for (const picture of pictures) {
+        expect(picture.startsWith("/"), panel.name).toBe(true);
+        expect(existsSync(repoFile(`web/public${picture}`)), picture).toBe(true);
+      }
     }
   });
 
@@ -49,13 +51,16 @@ describe("the branch pictures", () => {
     const forbidden = /\b(seal|emblem|insignia|logo|crest|flag|trademark)\b/i;
     for (const panel of BRANCH_PANELS) {
       expect(forbidden.test(panel.alt), panel.name).toBe(false);
-      const svg = readFileSync(repoFile(`web/public${panel.illustration}`), "utf8");
-      expect(forbidden.test(svg), panel.illustration).toBe(false);
+      for (const picture of [panel.illustration, panel.illustrationDark]) {
+        const svg = readFileSync(repoFile(`web/public${picture}`), "utf8");
+        expect(forbidden.test(svg), picture).toBe(false);
+      }
     }
   });
 
   it("are found by the branch name a report carries, and only by that", () => {
     expect(panelFor("Army")?.illustration).toBe("/branches/army.svg");
+    expect(panelFor("Army")?.illustrationDark).toBe("/branches/army-dark.svg");
     expect(panelFor("army")).toBeUndefined();
     expect(panelFor(null)).toBeUndefined();
     expect(panelFor(undefined)).toBeUndefined();

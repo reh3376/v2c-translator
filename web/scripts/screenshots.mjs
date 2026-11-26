@@ -4,6 +4,9 @@
  * The report shots answer `/api/translate` from `src/engine/fixtures/army-report.json`, so this
  * runs without a built O*NET index and without any real service record.
  *
+ * Each page is shot in both themes: the light ones with the system as it comes, the `-dark` ones
+ * with the system set to dark and the appearance control left on System.
+ *
  * Usage, from `web/`:
  *
  *   pnpm build && pnpm start          # one terminal
@@ -39,8 +42,8 @@ async function stubTranslate(page) {
 /** Let entrances finish, so no shot catches a half-faded section. */
 const settle = (page) => page.waitForTimeout(900);
 
-async function shoot(browser, name, { width, height, report: withReport = false, reducedMotion }) {
-  const context = await browser.newContext({ viewport: { width, height }, reducedMotion });
+async function shoot(browser, name, { width, height, report: withReport = false, reducedMotion, colorScheme }) {
+  const context = await browser.newContext({ viewport: { width, height }, reducedMotion, colorScheme });
   const page = await context.newPage();
   await stubTranslate(page);
   await page.goto(baseURL, { waitUntil: "networkidle" });
@@ -65,6 +68,13 @@ try {
   await shoot(browser, "mobile-empty", { width: 390, height: 844 });
   await shoot(browser, "mobile-report", { width: 390, height: 844, report: true });
   await shoot(browser, "desktop-reduced-motion", { width: 1440, height: 900, report: true, reducedMotion: "reduce" });
+
+  // The same page with the system set to dark. The appearance control is left on System, so
+  // these are what a reader gets without touching anything.
+  const dark = { colorScheme: "dark" };
+  await shoot(browser, "desktop-empty-dark", { width: 1440, height: 900, ...dark });
+  await shoot(browser, "desktop-report-dark", { width: 1440, height: 900, report: true, ...dark });
+  await shoot(browser, "mobile-report-dark", { width: 390, height: 844, report: true, ...dark });
 } finally {
   await browser.close();
 }

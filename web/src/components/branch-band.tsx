@@ -50,8 +50,26 @@ function Panel({ panel, marked, dimmed }: { panel: BranchPanel; marked: boolean;
     >
       <motion.figure {...lift(reduced)}>
         {/* Hand-drawn SVGs and any photograph dropped in beside them are served as they are: the
-            image optimizer refuses SVG by default, and there is nothing here worth re-encoding. */}
-        <Image src={panel.photo?.src ?? panel.illustration} alt={panel.alt} width={480} height={320} unoptimized />
+            image optimizer refuses SVG by default, and there is nothing here worth re-encoding.
+
+            Both the day and the night drawing are in the markup, and the stylesheet hides one.
+            That way the right one is painted before React runs, and the hidden one leaves the
+            accessibility tree with it, so the description is read exactly once either way. */}
+        {panel.photo ? (
+          <Image src={panel.photo.src} alt={panel.alt} width={480} height={320} unoptimized />
+        ) : (
+          <>
+            <Image className="art-day" src={panel.illustration} alt={panel.alt} width={480} height={320} unoptimized />
+            <Image
+              className="art-night"
+              src={panel.illustrationDark}
+              alt={panel.alt}
+              width={480}
+              height={320}
+              unoptimized
+            />
+          </>
+        )}
         <figcaption>
           <span className="band-name">{panel.name}</span>
           <span className="band-setting">{marked ? "From your documents" : panel.setting}</span>

@@ -251,7 +251,7 @@ function AtsString({ terms }: { terms: string[] }) {
           {copy === "copied" ? "Copied" : "Copy"}
         </motion.button>
       </div>
-      <p className="status" role="status">
+      <p className="status" role="status" data-tone={copy === "copied" ? "done" : undefined}>
         {copy === "copied" ? "Keyword string copied." : copy === "failed" ? "Copy didn't work here. Select the text and copy it." : ""}
       </p>
     </motion.section>
