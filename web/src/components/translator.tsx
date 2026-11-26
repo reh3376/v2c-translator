@@ -74,7 +74,7 @@ export function Translator() {
 
   async function translate(chosen: File[]) {
     dispatch({ type: "start" });
-    const result = await engine.translate(chosen);
+    const result = await engine.translate(chosen, null);
     dispatch({ type: "finish", result, fileName: chosen[0]?.name ?? "", producedOn: new Date() });
   }
 
