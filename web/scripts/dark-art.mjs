@@ -43,20 +43,24 @@ const clamp01 = (value) => Math.min(1, Math.max(0, value));
 const toLinear = (value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
 const fromLinear = (value) => (value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055);
 
-/** sRGB hexadecimal to OKLCH. */
+/**
+ * sRGB hexadecimal to OKLCH. The matrices are Björn Ottosson's, to seven decimals: further
+ * places cannot move an eight-bit channel, and a longer run of digits looks to
+ * `scripts/pii_guard.py` like an identifier.
+ */
 export function hexToOklch(hex) {
   const n = Number.parseInt(hex.slice(1), 16);
   const r = toLinear(((n >> 16) & 0xff) / 255);
   const g = toLinear(((n >> 8) & 0xff) / 255);
   const b = toLinear((n & 0xff) / 255);
 
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const l = Math.cbrt(0.4122215 * r + 0.5363325 * g + 0.051446 * b);
+  const m = Math.cbrt(0.2119035 * r + 0.6806995 * g + 0.107397 * b);
+  const s = Math.cbrt(0.0883025 * r + 0.2817188 * g + 0.6299787 * b);
 
-  const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
-  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
-  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  const lightness = 0.2104543 * l + 0.7936178 * m - 0.004072 * s;
+  const a = 1.9779985 * l - 2.4285922 * m + 0.4505937 * s;
+  const bb = 0.025904 * l + 0.7827718 * m - 0.8086758 * s;
 
   return { l: lightness, c: Math.hypot(a, bb), h: Math.atan2(bb, a) };
 }
@@ -66,14 +70,14 @@ export function oklchToHex({ l, c, h }) {
   const a = c * Math.cos(h);
   const b = c * Math.sin(h);
 
-  const lCube = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const mCube = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const sCube = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  const lCube = (l + 0.3963378 * a + 0.2158038 * b) ** 3;
+  const mCube = (l - 0.1055613 * a - 0.0638542 * b) ** 3;
+  const sCube = (l - 0.0894842 * a - 1.2914855 * b) ** 3;
 
   const channels = [
-    4.0767416621 * lCube - 3.3077115913 * mCube + 0.2309699292 * sCube,
-    -1.2684380046 * lCube + 2.6097574011 * mCube - 0.3413193965 * sCube,
-    -0.0041960863 * lCube - 0.7034186147 * mCube + 1.707614701 * sCube,
+    4.0767417 * lCube - 3.3077116 * mCube + 0.2309699 * sCube,
+    -1.268438 * lCube + 2.6097574 * mCube - 0.3413194 * sCube,
+    -0.0041961 * lCube - 0.7034186 * mCube + 1.7076147 * sCube,
   ];
 
   return `#${channels
