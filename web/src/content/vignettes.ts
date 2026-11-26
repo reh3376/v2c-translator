@@ -117,13 +117,14 @@ export const VIGNETTES: Record<BranchName, Vignette> = {
     ],
   },
   Army: {
-    scene: "a dismount: a tracked carrier pulls up, its rear ramp drops, and three soldiers step down behind it",
+    scene: "a dismount: a tracked carrier pulls up to the right of the truck, and three soldiers step down behind it",
     beats: [
-      { actor: "ifv", from: { x: 92 }, out: { x: 9 }, delay: 0, travel: 1.1, hold: 1.45 },
-      { actor: "ramp", origin: "76% 88%", from: { rotate: -72 }, out: { rotate: -14 }, delay: 1, travel: 0.45, hold: 1 },
-      walker("troop-a", "79% 87%", { x: -22, y: -8 }, { x: 11 }, 1.4, 0.45),
-      walker("troop-b", "82% 90%", { x: -24, y: -9 }, { x: 13 }, 1.6, 0.45),
-      walker("troop-c", "85% 93%", { x: -26, y: -10 }, { x: 15 }, 1.8, 0.45),
+      // In from off the right edge, and out the same way. It is parked clear of the truck, so the
+      // two vehicles are never on top of one another at any point in the scene.
+      { actor: "ifv", from: { x: 92 }, out: { x: 22 }, delay: 0, travel: 1.1, hold: 1.4 },
+      walker("troop-a", "90% 87%", { x: 0, y: -10 }, { x: -9, y: 4 }, 1.35, 0.45),
+      walker("troop-b", "85% 88%", { x: 20, y: -18 }, { x: -11, y: 5 }, 1.55, 0.5),
+      walker("troop-c", "80% 90%", { x: 44, y: -26 }, { x: -13, y: 6 }, 1.75, 0.55),
     ],
   },
   "Air Force": {

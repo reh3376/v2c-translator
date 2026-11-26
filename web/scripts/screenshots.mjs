@@ -110,16 +110,22 @@ async function scenes(browser, name, { colorScheme, reducedMotion, at }) {
 
   for (const branch of BRANCHES) {
     const tile = page.getByRole("button", { name: `Play the ${branch} scene` });
-    await tile.click();
-    let waited = 0;
+    // Warm the actor drawings, which are fetched when a picture is first hovered or pressed.
+    await tile.hover();
+    await page.waitForTimeout(400);
+
+    // One play per moment. Taking the shot costs a few hundred milliseconds, so waiting between
+    // shots within one play would put every frame after the first later than it claims to be.
     for (const [index, moment] of at.entries()) {
-      await page.waitForTimeout(moment - waited);
-      waited = moment;
+      await tile.click();
+      const started = Date.now();
+      const left = moment - (Date.now() - started);
+      if (left > 0) await page.waitForTimeout(left);
       const path = join(out, `scene-${branch.toLowerCase().replace(/ /g, "-")}-${name}-${index + 1}.png`);
       await tile.screenshot({ path });
       console.log(`wrote ${path}`);
+      await page.waitForTimeout(Math.max(400, 4200 - moment));
     }
-    await page.waitForTimeout(3400);
   }
   await context.close();
 }

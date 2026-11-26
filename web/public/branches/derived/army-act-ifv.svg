@@ -6,19 +6,19 @@
     </g>
   </defs>
   <g data-actor="ifv">
-    <ellipse cx="308" cy="298" rx="60" ry="4" fill="#0f1f20" opacity="0.25" />
-    <path d="M252 284h114v9H252Z" fill="#101f20" />
+    <ellipse cx="370" cy="290" rx="60" ry="4" fill="#0f1f20" opacity="0.25" />
+    <path d="M314 276h114v9H314Z" fill="#101f20" />
     <g fill="#24403c">
-      <circle cx="262" cy="288" r="4.5" />
-      <circle cx="281" cy="288" r="4.5" />
-      <circle cx="300" cy="288" r="4.5" />
-      <circle cx="319" cy="288" r="4.5" />
-      <circle cx="338" cy="288" r="4.5" />
-      <circle cx="357" cy="288" r="4.5" />
+      <circle cx="324" cy="280" r="4.5" />
+      <circle cx="343" cy="280" r="4.5" />
+      <circle cx="362" cy="280" r="4.5" />
+      <circle cx="381" cy="280" r="4.5" />
+      <circle cx="400" cy="280" r="4.5" />
+      <circle cx="419" cy="280" r="4.5" />
     </g>
-    <path d="M254 284v-14l20-14h92v28Z" fill="#15292a" />
-    <path d="M288 256v-13h34l3 13Z" fill="#1b3233" />
-    <path d="M308 246h11v5h-11Z" fill="#43605c" />
-    <path d="M276 264h13v7h-13Z" fill="#2c4442" />
+    <path d="M316 276v-14l20-14h92v28Z" fill="#15292a" />
+    <path d="M350 248v-13h34l3 13Z" fill="#1b3233" />
+    <path d="M370 238h11v5h-11Z" fill="#43605c" />
+    <path d="M338 256h13v7h-13Z" fill="#2c4442" />
   </g>
 </svg>
