@@ -301,9 +301,11 @@ def _texts(
     title: str = TITLE,
     omit: Collection[str] = (),
     cells: Mapping[tuple[str, int], str] | None = None,
+    cell_drift: Mapping[str, float] = {},
     blocks: Mapping[str, str] = {},
     labels: Mapping[str, str] = {},
     label_on_value_line: Collection[str] = (),
+    stray: Mapping[str, tuple[str, float]] = {},
 ) -> list[_Text]:
     from reportlab.pdfbase.pdfmetrics import stringWidth
 
@@ -336,6 +338,12 @@ def _texts(
                     gap = stringWidth(line, LABEL_FONT, LABEL_SIZE) + 4
                     then = (box.x0 + 2 + gap, value_lines[0])
                 out.append(_Text(y, box.x0 + 2, line, LABEL_FONT, LABEL_SIZE, then))
+                # A word of quite another size on the label's last line, the way OCR leaves
+                # one word of a scan's text layer standing across two printed lines.
+                if number in stray and i == len(lines) - 1:
+                    word, size = stray[number]
+                    gap = stringWidth(line, LABEL_FONT, LABEL_SIZE) + 4
+                    out.append(_Text(y, box.x0 + 2 + gap, word, LABEL_FONT, size))
             y += 7
         # On a scan the typed value sits on the printed label's last line, not under it.
         y += 4 if run_on else (-8.5 if overlap else 4)
@@ -377,6 +385,7 @@ def write_text_pdf(
     blocks: Mapping[str, str] = {},
     labels: Mapping[str, str] = {},
     label_on_value_line: Collection[str] = (),
+    stray: Mapping[str, tuple[str, float]] = {},
 ) -> Path:
     """The form as a PDF with a text layer, drawn in row-major order across the page.
 
@@ -391,6 +400,8 @@ def write_text_pdf(
     with the given value, and a newline in either breaks the line there.
     `label_on_value_line` writes those blocks' last label line and first value line as one
     text run, the way a scan's OCR layer reads a small label and the line under it as one.
+    `stray` draws that word at that size on those blocks' last label line, the way OCR
+    leaves one word of its text layer standing across two of the printed lines.
     """
     from reportlab.pdfgen.canvas import Canvas
 
@@ -414,6 +425,7 @@ def write_text_pdf(
         blocks=blocks,
         labels=labels,
         label_on_value_line=label_on_value_line,
+        stray=stray,
     )
     for t in sorted(drawn, key=lambda t: (t.top, t.x)):
         c.setFont(t.font, t.size)

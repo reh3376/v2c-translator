@@ -49,6 +49,17 @@ MIN_LABEL_TAIL = 5
 TAIL_SLACK = 4
 # What a line must hold after the label's tail for the rest of it to be a value.
 MIN_VALUE = 4
+# How tall a line of printed label stands against the block's own label, as the form prints
+# its labels at about 7 to 8 points and a value is typed at about 10: a line inside this
+# band is the size of printed label, and the first line above it is where the typed value
+# starts. A word of another size on a label's line, which OCR leaves behind, does not move
+# the line's own height, which is the middle one of its words.
+LABEL_HEIGHTS = (0.8, 1.2)
+# Fuzzy-match floor for a line of that size, above the first line typed larger. Its size
+# already says it is printed, so it has only to read like part of the label, which a label
+# line OCR has worn down to a few letters still does: on the reported form such a line
+# scores 73 and the entry under it 41.
+LABEL_PRINTED_MATCH = 65
 # Fuzzy-match floor for one of block 12's column headings, which are single words.
 HEADING_MATCH = 75
 # A page with fewer labels found than this is not read by position.
@@ -235,12 +246,14 @@ class Status(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Region:
-    """A block's box, and the words inside it that the reader writes."""
+    """A block's box, the words inside it that the reader writes, and how tall the form
+    prints this block's own label, which is how the label is told from the typed value."""
 
     block: str
     status: Status
     box: Box | None = None
     words: tuple[Word, ...] = ()
+    label_height: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -426,7 +439,7 @@ def _locate(
         # The label is printed at the top of its block, so a word above it is the block
         # above's: on a blurry scan one such word reaches into this box's top margin.
         inside = tuple(w for w in page if _inside(w, b) and _cy(w) >= blocks[block].top)
-        regions.append(Region(block, Status.READ, b, inside))
+        regions.append(Region(block, Status.READ, b, inside, _text_height(blocks[block].words)))
     return Layout(page_no, (*regions, *withheld), tuple(cells)), notes
 
 
@@ -444,7 +457,9 @@ def _write(edition: Edition, layout: Layout, lines: Sequence[tuple[Word, ...]]) 
         if regions[block].status is not Status.READ:
             continue
         in_box = _drop_label(
-            _grouped(lines, regions[block].words), block + _printed(edition, block)
+            _grouped(lines, regions[block].words),
+            block + _printed(edition, block),
+            regions[block].label_height,
         )
         text = [_text(line) for line in in_box]
         # With "//" between entries, a line break in the box is only a wrap. The "//" may
@@ -534,25 +549,55 @@ def _grouped(lines: Sequence[tuple[Word, ...]], words: Iterable[Word]) -> list[t
     return sorted(out, key=lambda line: min(_cy(w) for w in line))
 
 
-def _drop_label(lines: list[tuple[Word, ...]], label: str) -> list[tuple[Word, ...]]:
+def _drop_label(
+    lines: list[tuple[Word, ...]], label: str, label_height: float = 0.0
+) -> list[tuple[Word, ...]]:
     """The box's lines after its printed label, which may wrap onto several lines and in any
     order: a parenthetical the form prints last can sit on the line above the one before it.
-    So each line the label holds is dropped until one it does not hold, which is a value.
+
+    The form prints a label smaller than a value is typed, so a line of the label's own
+    size above the first line typed larger has only to read like part of the label to be
+    label, and not to read like the label whole. Where the sizes do not tell the two apart,
+    each line the label's text matches is dropped until one it does not, which is a value.
 
     On a scan the label's last line and the first typed line are read as one line. That
     line's own start is then the label's tail ("...periods of one or more years.)"), and is
     taken off it; left on, the tail reads as part of the first value on the form.
     """
     target = _squash_text(label)
+    printed = _printed_lines(lines, target, label_height)
     for i, line in enumerate(lines):
         squashed, owner = _squash(line)
         tail = _label_tail(squashed, target)
         if tail and len(squashed) - tail >= MIN_VALUE:
             value = {owner[j] for j in range(tail, len(owner))}
             return [tuple(w for n, w in enumerate(line) if n in value), *lines[i + 1 :]]
-        if fuzz.partial_ratio(squashed, target) < LABEL_LINE_MATCH:
+        if i >= printed and fuzz.partial_ratio(squashed, target) < LABEL_LINE_MATCH:
             return lines[i:]
     return []
+
+
+def _printed_lines(lines: Sequence[tuple[Word, ...]], target: str, label_height: float) -> int:
+    """How many lines at the top of a block are more of the form's printed label, told by
+    size and by text together: a line the size of this block's own label, above the first
+    line typed larger, is label when it still reads like part of the label at all.
+
+    0 where the sizes tell nothing, because no line of the box is typed larger than the
+    label: that is how a page OCR read in one size comes out, and there the label's own
+    text has to tell the two apart by itself.
+    """
+    if label_height <= 0:
+        return 0
+    heights = [_text_height(line) for line in lines]
+    typed = next((i for i, h in enumerate(heights) if h > LABEL_HEIGHTS[1] * label_height), None)
+    if typed is None:
+        return 0
+    printed = 0
+    while printed < typed and heights[printed] >= LABEL_HEIGHTS[0] * label_height:
+        if fuzz.partial_ratio(_squash(lines[printed])[0], target) < LABEL_PRINTED_MATCH:
+            break
+        printed += 1
+    return printed
 
 
 def _label_tail(squashed: str, target: str) -> int:

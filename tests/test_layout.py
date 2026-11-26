@@ -294,6 +294,31 @@ def test_block_11s_wrapped_label_does_not_reach_the_first_specialty(tmp_path):
     ]
 
 
+# The same label as the user's own form leaves it: its last line stands on its own, above
+# the typed entries, and holds no value. Garbled this far it matches no text of the label,
+# so only its size says it is label. "S/RS!" is drawn over both lines, as OCR left it.
+TALL_WORD_11 = ("S/RS!", 20.0)
+WRAPPED_LABEL_11 = GARBLED_LABEL_11.removesuffix(" " + TALL_WORD_11[0])
+
+
+def test_block_11s_label_line_is_not_read_as_a_specialty(tmp_path):
+    """The reported failure on the user's form. The last line of block 11's printed label
+    came out as the start of the first specialty's title, because the line matches no text
+    of the label any more. It is printed at the label's own size, and the entries under it
+    are typed larger, which is what tells the two apart. The one word of another size on
+    that line, which OCR left standing across both printed lines, goes with the line."""
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf",
+        labels={"11": WRAPPED_LABEL_11},
+        blocks={"11": WRAPPED_SPECIALTIES},
+        stray={"11": TALL_WORD_11},
+    )
+    assert _occupations(resolve(read(pdf)[1])) == [
+        ("25U60 2B SI GI NT SGT/ CHIEF", 134),
+        ("25B4L NETWORK SYSTEMS OPERATOR", 281),
+    ]
+
+
 def test_unreadable_cells_are_left_out_not_guessed(noisy_pdf):
     """Block 12d's day reads 80 and 12g's month 0B: neither is a value, so neither is used."""
     doc, facts = read(noisy_pdf)

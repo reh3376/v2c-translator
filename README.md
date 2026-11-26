@@ -467,7 +467,11 @@ So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position ins
    line were read as one line, as a scan leaves them, the label's tail is taken off the
    front of that line: left on, `...periods of one or more years.)` reads as part of the
    first specialty's title. How much of the line is label is measured against the label's
-   end, because the value follows the tail.
+   end, because the value follows the tail. The form prints its labels smaller than a
+   value is typed, so a line the size of the block's own label, above the first line typed
+   larger, is label too as soon as it reads like any part of the label. The last line of
+   block 11's long label comes off a scan worn down to a few letters that match little
+   else, and its size is what is left to tell it from the first specialty.
 3. It reads block 12 as a grid. The `YEAR(S)`, `MONTH(S)` and `DAY(S)` headings give the
    columns, and each column's own values give the rows: a column with a value for every
    row is read in order, top to bottom, and a column OCR read fewer values in has its rows
