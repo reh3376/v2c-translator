@@ -170,6 +170,9 @@ EDITION_2000 = Edition(
 EDITIONS = (EDITION_2000,)
 COLUMNS = ("YEARS", "MONTHS", "DAYS")  # block 12's headings, squashed
 CELL_DIGITS = (4, 2, 2)  # the form prints YEAR(S) as 4 digits, MONTH(S) and DAY(S) as 2
+# The years a date in this block can fall in. A reading outside them is a misread, however
+# well it reads as a date: a row of digits repaired into "0020" is no year of service.
+SERVICE_YEARS = (1940, 2049)
 # Block 12's rows a and b are the dates this period of service ran between, and row c is
 # its length, counted inclusively. Time lost (block 29) is not read here, so a length that
 # does not follow from the dates is reported as a note, not corrected.
@@ -731,9 +734,15 @@ def _record(
         # Every cell of a row is boxed from the row's own band, not from its own words, so
         # a cell the text layer left empty still has the box the page image is cut at.
         top, bottom = band
-        boxes = {name: (x0, top, x1, bottom) for name, (x0, x1) in columns.items()}
+        boxes = {column: (x0, top, x1, bottom) for column, (x0, x1) in columns.items()}
         reads = [
-            _cell_digits(_cell(words[column]), width, boxes[column], page_scan)
+            _cell_digits(
+                _cell(words[column]),
+                width,
+                boxes[column],
+                page_scan,
+                year=row.is_date and column == COLUMNS[0],
+            )
             for column, width in zip(COLUMNS, CELL_DIGITS, strict=True)
         ]
         missing_tools = missing_tools or any(read.missing_tools for read in reads)
@@ -944,13 +953,15 @@ def _digits(cell: str, width: int) -> str:
     return s
 
 
-def _cell_digits(text: str, width: int, box: Box, page_scan: Callable[[], _Page]) -> _Read:
+def _cell_digits(
+    text: str, width: int, box: Box, page_scan: Callable[[], _Page], year: bool = False
+) -> _Read:
     """A cell's `width` digits, or None, and what came of reading it again from the page.
 
     A cell the text layer did not leave as digits is cut out of the page image and read
     again, at each margin and magnification in REREAD_TRIES until one reads as digits.
     """
-    if (digits := _of_width(text, width)) is not None:
+    if (digits := _of_width(text, width, year)) is not None:
         return _Read(digits)
     found = page_scan()
     if found.scan is None:
@@ -961,16 +972,23 @@ def _cell_digits(text: str, width: int, box: Box, page_scan: Callable[[], _Page]
         if read is None:
             return _Read(None, attempt, missing_tools=True)
         crop, text = read
-        digits = _of_width(text, width)
+        digits = _of_width(text, width, year)
         attempt = Reread(crop, how.zoom, shape(text) if text else "none", digits is not None)
         if digits is not None:
             return _Read(digits, attempt)
     return _Read(None, attempt)
 
 
-def _of_width(text: str, width: int) -> str | None:
+def _of_width(text: str, width: int, year: bool = False) -> str | None:
+    """`text` as the cell's `width` digits, or None. A cell holding the year of a date is
+    read only as a year of service: digits repaired into "0020" are a misread, and saying
+    so is what sends the cell to be read again off the page image."""
     digits = _digits(text, width)
-    return digits if digits.isdigit() and len(digits) == width else None
+    if not (digits.isdigit() and len(digits) == width):
+        return None
+    if year and not SERVICE_YEARS[0] <= int(digits) <= SERVICE_YEARS[1]:
+        return None
+    return digits
 
 
 def _reread(scan: Scan, box: Box, how: Try) -> tuple[Box, str] | None:

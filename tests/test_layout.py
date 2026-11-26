@@ -202,6 +202,17 @@ def test_zero_look_alikes_in_a_block_12_cell_read_as_zeros(tmp_path):
     assert [n for n in doc.notes if "12d" in n or "12e" in n] == []
 
 
+def test_a_date_whose_year_no_one_served_in_is_not_a_date(tmp_path):
+    """Repairing a cell can make digits that read as a date and are still a misread: "()()"
+    for "20" leaves block 12b in the year 20. A row like that is refused, not used."""
+    pdf = form.write_text_pdf(tmp_path / "dd214.pdf", cells={("b", 0): "()()20"})
+    doc, facts = read(pdf)
+    assert resolve(facts).context.as_of is None
+    assert [n for n in doc.notes if n.startswith("The value of block 12b")] == [
+        "The value of block 12b (separation date this period) could not be read; not used."
+    ]
+
+
 @needs_tesseract
 @needs_ocr_extra
 def test_a_cell_with_no_words_at_all_is_read_from_the_page(scan_png, tmp_path):
