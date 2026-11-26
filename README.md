@@ -393,6 +393,21 @@ service licenses, and using one would imply the endorsement the footer disclaims
 names a branch, that picture is marked. A public-domain DoD or DVIDS photograph can replace any of
 them; the type requires a credit line with it, and `web/TESTING.md` has the steps.
 
+Each branch has two hand-drawn files: the scene, whose shapes are labelled `data-plane="sky"`,
+`"mid"` or `"fore"`, and an act drawing, whose shapes are labelled `data-actor`.
+[`web/scripts/dark-art.mjs`](web/scripts/dark-art.mjs) derives everything the page actually loads
+into `web/public/branches/derived/`: a dark twin of each drawing, one file per plane, and one file
+per actor. `pnpm dark-art --check`, which `pnpm test` also runs, fails on a derived file that is
+stale or no longer derived from anything.
+
+**The scenes.** Pressing a branch picture plays that branch's vignette once: a ceremonial salute,
+a boarding, a dismount, a flyover, a sweep of a map. Each picture is a real button, nothing plays
+on its own, nothing loops, and every scene settles back to the resting picture. The choreography
+is [`web/src/content/vignettes.ts`](web/src/content/vignettes.ts), which says only when each actor
+arrives and where it comes in from; the actor is drawn where it **settles**, which is what lets a
+reader who asked for less motion see the scene as a still frame with no transform at all. No scene
+draws a weapon, a round, a flame, an explosion, a target or a casualty, and no figure has a face.
+
 **Resources.** The links under "Resources for veterans" live in
 [`web/src/content/resources.ts`](web/src/content/resources.ts), open in a new tab, and carry no
 query string. `pnpm check-links` visits them all and fails on a dead one. The weekly
@@ -403,7 +418,21 @@ rather than in pull-request CI, where somebody else's outage would block a merge
 animation vocabulary is [`web/src/components/motion.ts`](web/src/components/motion.ts): entrances
 and feedback of 150-300 ms, transforms and opacity only. `MotionConfig reducedMotion="user"` wraps
 the page, and every bundle built for a reader who asked for less motion animates nothing and takes
-no time, which `motion.test.ts` holds it to.
+no time, which `motion.test.ts` holds it to. A vignette is the one thing that runs for seconds
+rather than milliseconds, because a reader asks for it by pressing a picture.
+
+Scroll drives three more things: the planes of each branch picture, which travel a few pixels
+apart as the band passes up the window; the three steps of "How it works", each of which moves
+differently; and the report's summary, which stays at the top of the window while the rest of the
+report scrolls under it. All of it is gated on the page having mounted, so the markup the server
+sends holds no hidden sections: with no JavaScript the page is all of the text and none of the
+transforms, which `e2e/scroll.spec.ts` checks with scripts turned off, along with a cumulative
+layout shift of zero over a full scroll and no request to any other origin.
+
+The design method behind the layered pictures and the varied scroll devices is
+[scroll-craft](https://github.com/nateherkai/scroll-craft) by Nate Herk (MIT), used as guidance
+only: no code from it is vendored, and its asset-generation pipeline is deliberately not used,
+because every picture here is drawn in this repository.
 
 Before you merge a change to `web/`, run the manual acceptance steps in
 [`web/TESTING.md`](web/TESTING.md) on your own computer.
