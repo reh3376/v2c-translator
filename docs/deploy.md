@@ -239,7 +239,7 @@ processes and tesseract together.
 | | Peak | |
 | --- | --- | --- |
 | Image, to pull | 190 MiB | the sum of the compressed layers |
-| Image, unpacked on disk | 556 MiB | what it occupies on the box |
+| Image, unpacked on disk | ~555 MiB | what it occupies on the box; 553 on a runner, 556 on a laptop |
 | Idle, just booted | 63 MiB | |
 | One text translation | 72 MiB | |
 | One 1-page 300 dpi scan, OCR'd | 456 MiB | ~4.6 s |
