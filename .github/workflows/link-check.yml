@@ -1,0 +1,32 @@
+name: Link check
+
+# The "Resources for veterans" links point at sites nobody here controls, so they are checked on
+# their own schedule rather than in pull-request CI, where an outage elsewhere would block a merge.
+
+on:
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # The checker has no dependencies, so there is nothing to install first.
+      - name: Visit every link in web/src/content/resources.ts
+        run: pnpm check-links
