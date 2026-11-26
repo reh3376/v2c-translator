@@ -80,6 +80,7 @@ def scan_png(tmp_path_factory) -> Path:
     params=[
         "clean",
         "noisy",
+        "overlap",
         pytest.param("ocr", marks=needs_tesseract),
         pytest.param("scan", marks=[needs_tesseract, needs_ocr_extra]),
     ],
@@ -91,6 +92,8 @@ def variant(request, tmp_path_factory) -> Variant:
             form.write_text_pdf(pdf)
         case "noisy":
             form.write_text_pdf(pdf, noisy=True)
+        case "overlap":
+            form.write_text_pdf(pdf, overlap=True)
         case "ocr":
             form.write_ocr_pdf(request.getfixturevalue("scan_png"), pdf)
         case "scan":
@@ -180,6 +183,7 @@ def test_inspection_finds_the_form_and_what_the_reader_did(variant, inspected):
     source, unit, rules = {
         "clean": ("text-layer", "pt", "drawn"),
         "noisy": ("text-layer", "pt", "drawn"),
+        "overlap": ("text-layer", "pt", "drawn"),
         "ocr": ("text-layer", "pt", "image"),
         "scan": ("ocr", "px", "image"),
     }[variant.name]
@@ -195,8 +199,10 @@ def test_inspection_finds_the_form_and_what_the_reader_did(variant, inspected):
     assert {b for b, s in statuses.items() if s == "read"} == written
 
 
-def test_clean_form_shows_every_label_and_each_block_12_cell(tmp_path):
-    lines = report(inspect(form.write_text_pdf(tmp_path / "dd214.pdf")))
+@pytest.mark.parametrize("overlap", [False, True])
+def test_form_shows_every_label_and_each_block_12_cell(overlap, tmp_path):
+    """With the rows overlapping too: that form is what the reader was refusing to read."""
+    lines = report(inspect(form.write_text_pdf(tmp_path / "dd214.pdf", overlap=overlap)))
     found = {line.split()[1] for line in lines if line.startswith("label ")}
     assert set(LABEL_IDS) - found == {"Lspecial"}  # the synthetic form does not print it
     cells = [line for line in lines if line.startswith("cell ")]

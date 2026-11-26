@@ -7,7 +7,9 @@ blocks can be read by position instead of by line order.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
@@ -32,13 +34,28 @@ class Word:
 
 
 @dataclass(frozen=True, slots=True)
+class Scan:
+    """One page of a scan as an image, with the pixels it holds per unit of that page's word
+    boxes, so a word's own box can be cut out of the image and read again."""
+
+    image: object
+    scale: float
+
+
+# A file's pages as images, rendered on the first call and only if something needs them.
+ScanPages = Callable[[], Sequence[Scan]]
+
+
+@dataclass(frozen=True, slots=True)
 class Content:
     """A file's text in line order, and its words with their boxes (none for plain text).
-    For OCR, also the lines tesseract put the words in; a text layer has none here."""
+    For OCR, also the lines tesseract put the words in; a text layer has none here.
+    `scan` is set when the pages are scanned images, so a garbled word can be read again."""
 
     text: str
     words: tuple[Word, ...] = ()
     lines: tuple[tuple[Word, ...], ...] = ()
+    scan: ScanPages | None = None
 
 
 def load_text(path: Path, *, ocr: bool = False) -> Content:
@@ -70,7 +87,10 @@ def _pdf_content(path: Path, *, ocr: bool) -> Content:
 
     if len(re.sub(r"\s", "", text)) >= 100:
         # Field values have no word boxes, so a filled form keeps to its text alone.
-        return Content(text, () if values else _pdf_words(path))
+        if values:
+            return Content(text)
+        dpi = _scan_dpi(reader) if _page_images(reader.pages[0]) else 0
+        return Content(text, _pdf_words(path), scan=_scan_pages(path, dpi) if dpi else None)
     if not ocr:
         raise ExtractionError(
             "PDF has no usable text layer (probably a scan). Re-run with --ocr "
@@ -90,15 +110,30 @@ def render_scan(path: Path) -> list:
     return convert_from_path(str(path), dpi=_scan_dpi(PdfReader(path)))
 
 
-def _scan_dpi(reader) -> int:
-    """The resolution the first page was scanned at, up to 300 dpi. Rendering a 200 dpi
-    scan at 300 dpi resamples it, and tesseract then misreads more of it."""
-    page = reader.pages[0]
-    images = [
+def _scan_pages(path: Path, dpi: int) -> ScanPages:
+    """`path`'s pages as images, rendered once, however often they are asked for."""
+
+    @cache
+    def pages() -> tuple[Scan, ...]:
+        return tuple(Scan(image, dpi / 72) for image in render_scan(path))
+
+    return pages
+
+
+def _page_images(page) -> list:
+    """The images a PDF page draws. A page that draws one is a scan, not a typed page."""
+    return [
         x.get_object()
         for x in (page["/Resources"].get("/XObject") or {}).values()
         if x.get_object().get("/Subtype") == "/Image"
     ]
+
+
+def _scan_dpi(reader) -> int:
+    """The resolution the first page was scanned at, up to 300 dpi. Rendering a 200 dpi
+    scan at 300 dpi resamples it, and tesseract then misreads more of it."""
+    page = reader.pages[0]
+    images = _page_images(page)
     if not images:
         return 300
     pixels = max(max(int(x["/Width"]), int(x["/Height"])) for x in images)
@@ -175,6 +210,7 @@ def _ocr_images(images) -> Content:
         import pytesseract
     except ImportError as e:  # pragma: no cover
         raise ExtractionError("OCR needs the 'ocr' extra: uv sync --extra ocr") from e
+    images = list(images)
     lines: list[tuple[Word, ...]] = []
     pages: list[str] = []
     for page_no, img in enumerate(images):
@@ -192,4 +228,11 @@ def _ocr_images(images) -> Content:
             )
         lines += map(tuple, page.values())
         pages.append("\n".join(" ".join(w.text for w in line) for line in page.values()))
-    return Content("\n".join(pages), tuple(w for line in lines for w in line), tuple(lines))
+    # OCR's boxes are already in the image's pixels, so a cell's box needs no scaling.
+    scanned = tuple(Scan(img, 1.0) for img in images)
+    return Content(
+        "\n".join(pages),
+        tuple(w for line in lines for w in line),
+        tuple(lines),
+        lambda: scanned,
+    )

@@ -23,8 +23,6 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from rapidfuzz import fuzz
-
 from .extract import IMAGE_SUFFIXES, ExtractionError, Word, load_text, render_scan
 from .extractors.dd214_layout import (
     COLUMNS,
@@ -33,9 +31,8 @@ from .extractors.dd214_layout import (
     Form,
     _assign,
     _head,
-    _Label,
-    _lines,
-    _squash_text,
+    _heading,
+    _reading_lines,
     read_form,
 )
 
@@ -58,7 +55,6 @@ LABELS: tuple[tuple[str, str], ...] = (
 # Block 12's column headings are single words, so they are matched word by word.
 HEADINGS = (("L12yr", "YEARS"), ("L12mo", "MONTHS"), ("L12dy", "DAYS"))
 LABEL_IDS = (*dict.fromkeys(key for key, _ in LABELS), *(key for key, _ in HEADINGS))
-HEADING_MATCH = 75  # the layout reader's own floor for a column heading
 COLUMN_IDS = dict(zip(COLUMNS, ("yr", "mo", "dy"), strict=True))
 PNG_SIDE = 1600  # pixels along the page's longer side
 
@@ -130,7 +126,8 @@ def inspect(path: Path, *, ocr: bool = False) -> Inspection:
         pages = _pdf_pages(path, content.words)
         source, unit = "text-layer", "pt"
     labels = tuple(lb for page in pages for lb in _labels(page))
-    return Inspection(source, unit, pages, labels, read_form(content.words))
+    form = read_form(content.words, content.lines, content.scan)
+    return Inspection(source, unit, pages, labels, form)
 
 
 # --------------------------------------------------------------------------- report
@@ -293,9 +290,10 @@ def _focus(ins: Inspection) -> Page:
 
 
 def _labels(page: Page) -> list[Label]:
-    """The form's printed labels found on `page`, by our id. No word belongs to two."""
+    """The form's printed labels found on `page`, by our id. No word belongs to two. The
+    page's own lines are matched, as the reader matches them."""
     words = [w for line in page.lines for w in line]
-    found = _assign(_lines(words), list(LABELS)) if words else {}
+    found = _assign(page.lines, list(LABELS)) if words else {}
     labels = [Label(key, page.number, lb.score, lb.words) for key, lb in found.items()]
     used = {id(w) for lb in labels for w in lb.words}
     anchor = found.get("L12a") or found.get("L12")
@@ -305,22 +303,6 @@ def _labels(page: Page) -> list[Label]:
             labels.append(Label(key, page.number, score, (word,)))
             used.add(id(word))
     return sorted(labels, key=lambda lb: LABEL_IDS.index(lb.id))
-
-
-def _heading(name: str, words: Sequence[Word], anchor: _Label | None):
-    """(score, word) for the word that best reads as column heading `name`. With block 12's
-    label or row a's found, only words right of it count, nearest first, so "years" in
-    block 11's own label is not taken for the heading."""
-    near = (anchor.x0, anchor.top) if anchor else (0.0, 0.0)
-    scored = [
-        (score, w)
-        for w in words
-        if (score := fuzz.ratio(name, _squash_text(w.text))) >= HEADING_MATCH
-        and (anchor is None or w.x0 > anchor.x0)
-    ]
-    return max(
-        scored, key=lambda sw: (sw[0], -math.dist((sw[1].x0, sw[1].top), near)), default=None
-    )
 
 
 # --------------------------------------------------------------------------- text layer
@@ -366,24 +348,6 @@ def _pdf_pages(path: Path, words: Sequence[Word]) -> tuple[Page, ...]:
             Page(n, layout.width, h, tuple(_reading_lines(page_words)), runs, rules, source)
         )
     return tuple(pages)
-
-
-def _reading_lines(words: Sequence[Word]) -> list[tuple[Word, ...]]:
-    """Words in the order their source gives them, cut where the next word leaves the line:
-    it rises or drops off it, or starts left of the word before."""
-    lines: list[list[Word]] = []
-    for w in words:
-        prev = lines[-1][-1] if lines else None
-        tol = 0.5 * max(w.bottom - w.top, prev.bottom - prev.top) if prev else 0
-        if prev and abs(_cy(w) - _cy(prev)) <= tol and w.x0 >= prev.x0:
-            lines[-1].append(w)
-        else:
-            lines.append([w])
-    return [tuple(line) for line in lines]
-
-
-def _cy(w: Word) -> float:
-    return (w.top + w.bottom) / 2
 
 
 def _drawn_rules(curves: Iterable[tuple[Box, bool]]) -> tuple[Rule, ...]:

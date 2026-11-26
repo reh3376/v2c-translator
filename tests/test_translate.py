@@ -6,12 +6,14 @@ from pathlib import Path
 import pytest
 
 from dd214kw.cli import main
+from dd214kw.evidence import OccupationHeld, SourceFactory
 from dd214kw.extractors import read
 from dd214kw.index import DEFAULT_INDEX, Index
 from dd214kw.resolve import resolve
-from dd214kw.translate import translate
+from dd214kw.translate import match_specialty, translate
 
 FIX = Path(__file__).parent / "fixtures"
+SOURCE = SourceFactory.for_bytes(b"test")("dd214", "block 11")
 pytestmark = pytest.mark.skipif(not DEFAULT_INDEX.exists(), reason="index not built")
 
 
@@ -54,6 +56,22 @@ def test_marines(index):
     r = translate(index, resolve(read(FIX / "marines.json")[1]))
     assert [m.code for m in r.matches] == ["0311", "3531"]
     assert any("Truck" in t or "Driver" in t for t in _terms(r, "job_titles"))
+
+
+@pytest.mark.parametrize(
+    ("title", "branch", "expected"),
+    [
+        # A year and a row of zeroes are each a real code of some service, so an entry
+        # carrying one used to match it: "1990" a supply officer, "0000" a holding category.
+        ("CRYPTOLOGIC TECHNICIAN 1990 0000", None, ("CT", "title")),
+        ("INTELLIGENCE ANALYST 0000 00 00", None, ("35F", "title")),
+        ("35M20 HUMAN INTELLIGENCE COLLECTOR 2008", "Army", ("35M", "code-variant")),
+    ],
+)
+def test_a_year_or_a_row_of_zeroes_is_not_the_specialty_code(index, title, branch, expected):
+    held = OccupationHeld(None, title, None, None, None, SOURCE)
+    match = match_specialty(index, held, branch, None)
+    assert (match.code, match.method) == expected
 
 
 def test_ats_terms_are_short(index):

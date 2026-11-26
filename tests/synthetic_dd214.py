@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 import shutil
 import subprocess
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -230,6 +230,34 @@ NOISY_CELLS = {
     ("d", 2): "8O",  # 80 days
     ("g", 1): "0B",
 }
+# How a scanner's own text layer leaves this form, and what the reader has to survive:
+# every typed value sits on its printed label's last line instead of under it; block 12's
+# row labels slide off the values they name, so f's label sits beside row g's value and h's
+# beside row i's; and blocks 13 and 14's labels wrap so that their first lines share a line.
+OVERLAP_SHIFT = {
+    "a": 1.0,
+    "b": 2.0,
+    "c": 2.0,
+    "d": 5.0,
+    "e": 6.0,
+    "f": 11.0,
+    "g": 0.0,
+    "h": 11.0,
+    "i": 0.0,
+}
+OVERLAP_CELLS = {("a", 2): "I9", ("c", 0): "O012", ("f", 2): "1I"}
+OVERLAP_LABELS = {
+    "13": (
+        "13. DECORATIONS, MEDALS, BADGES, CITATIONS AND CAMPAIGN",
+        "RIBBONS AWARDED OR AUTHORIZED (All periods of service)",
+    ),
+    "14": (
+        "14. MILITARY EDUCATION",
+        "(Course title, number of weeks, and month and year completed)",
+    ),
+}
+# A cell no repair table can undo: only the page image behind the text layer holds it.
+SCAN_CELLS = {("c", 0): "Z0012"}
 NOISY_LABELS = {
     "2. DEPARTMENT, COMPONENT AND BRANCH": "2, DEPART MENT, C0MPONENT AND BRANCH",
     "4b. PAY GRADE": "4b. PAY GRAOE",
@@ -244,7 +272,8 @@ def values() -> list[str]:
     """Every value the forms are filled in with, as drawn on the clean and the noisy form:
     the person's data, which nothing that describes the page's layout may echo."""
     cells = [cell for _, _, *row in RECORD for cell in row]
-    return [box.value for box in BOXES if box.value] + cells + list(NOISY_CELLS.values())
+    drawn = [*NOISY_CELLS.values(), *OVERLAP_CELLS.values(), *SCAN_CELLS.values()]
+    return [box.value for box in BOXES if box.value] + cells + drawn
 
 
 @dataclass(frozen=True)
@@ -263,8 +292,19 @@ def _wrap(text: str, font: str, size: float, width: float) -> list[str]:
     return simpleSplit(text, font, size, width)
 
 
-def _texts(*, noisy: bool, title: str, omit: Collection[str]) -> list[_Text]:
+def _texts(
+    *,
+    noisy: bool = False,
+    overlap: bool = False,
+    title: str = TITLE,
+    omit: Collection[str] = (),
+    cells: Mapping[tuple[str, int], str] | None = None,
+    blocks: Mapping[str, str] = {},
+) -> list[_Text]:
     from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    if cells is None:
+        cells = NOISY_CELLS if noisy else OVERLAP_CELLS if overlap else {}
 
     out = [_Text(44, 160, title, "Helvetica-Bold", 10)]
     out.append(_Text(30, 36, "CAUTION: NOT TO BE USED FOR IDENTIFICATION PURPOSES", "Helvetica", 6))
@@ -273,26 +313,32 @@ def _texts(*, noisy: bool, title: str, omit: Collection[str]) -> list[_Text]:
     )
     for box in BOXES:
         label = NOISY_LABELS.get(box.label, box.label) if noisy else box.label
-        lines = _wrap(label, LABEL_FONT, LABEL_SIZE, box.x1 - box.x0 - 4)
-        if box.label.startswith("12."):
-            lines = _wrap(label, LABEL_FONT, LABEL_SIZE, COLUMNS[0][1] - box.x0 - 4)
+        number = box.label.split(".")[0]
+        width = (COLUMNS[0][1] if box.label.startswith("12.") else box.x1) - box.x0 - 4
+        lines = list(OVERLAP_LABELS[number]) if overlap and number in OVERLAP_LABELS else []
+        lines = lines or _wrap(label, LABEL_FONT, LABEL_SIZE, width)
         y = box.top + 7
         for line in lines:
-            if box.label.split(".")[0] not in omit:
+            if number not in omit:
                 out.append(_Text(y, box.x0 + 2, line, LABEL_FONT, LABEL_SIZE))
             y += 7
-        y += 4
-        for line in _wrap(box.value, VALUE_FONT, VALUE_SIZE, box.x1 - box.x0 - 8):
+        # On a scan the typed value sits on the printed label's last line, not under it.
+        y += -8.5 if overlap else 4
+        value = blocks.get(number, box.value)
+        for line in _wrap(value, VALUE_FONT, VALUE_SIZE, box.x1 - box.x0 - 8):
             out.append(_Text(y + 3, box.x0 + 4, line, VALUE_FONT, VALUE_SIZE))
             y += 11
     for name, x0, x1 in COLUMNS:
         x = (x0 + x1 - stringWidth(name, LABEL_FONT, LABEL_SIZE)) / 2
         out.append(_Text(187, x, name, LABEL_FONT, LABEL_SIZE))
-    for i, (letter, label, *cells) in enumerate(RECORD):
+    for i, (letter, label, *row) in enumerate(RECORD):
         top = GRID_TOP + i * ROW_PITCH
-        out.append(_Text(top + 9, GRID_X0 + 4, f"{letter}. {label}", LABEL_FONT, LABEL_SIZE))
-        for j, ((_, x0, x1), cell) in enumerate(zip(COLUMNS, cells, strict=True)):
-            drawn = NOISY_CELLS.get((letter, j), cell) if noisy else cell
+        shift = OVERLAP_SHIFT[letter] if overlap else 0.0
+        out.append(
+            _Text(top + 9 + shift, GRID_X0 + 4, f"{letter}. {label}", LABEL_FONT, LABEL_SIZE)
+        )
+        for j, ((_, x0, x1), cell) in enumerate(zip(COLUMNS, row, strict=True)):
+            drawn = cells.get((letter, j), cell)
             x = (x0 + x1 - stringWidth(cell, VALUE_FONT, VALUE_SIZE)) / 2
             # Typed values sit a little above the printed label's baseline, as on a scan.
             out.append(_Text(top + 7.5, x, drawn, VALUE_FONT, VALUE_SIZE))
@@ -309,17 +355,22 @@ def write_text_pdf(
     path: Path,
     *,
     noisy: bool = False,
+    overlap: bool = False,
     title: str = TITLE,
     field: str | None = None,
     omit: Collection[str] = (),
+    cells: Mapping[tuple[str, int], str] | None = None,
+    blocks: Mapping[str, str] = {},
 ) -> Path:
     """The form as a PDF with a text layer, drawn in row-major order across the page.
 
     `noisy` draws what a scan's OCR layer holds: confusions (O for 0, l for 1, stray
     punctuation, split and misread label words), two cells no repair can undo, and one text
-    run that crosses from block 11 into block 12. `field` adds a fillable form field that
-    holds that value. `omit` leaves out the printed labels of those blocks ("5", "7a"), the
-    way OCR loses a label, and keeps their values.
+    run that crosses from block 11 into block 12. `overlap` draws the rows as a scanner's
+    text layer leaves them, with every value on its label's own line and block 12's row
+    labels off the values they name (see OVERLAP_SHIFT). `field` adds a fillable form field
+    that holds that value. `omit` leaves out the printed labels of those blocks ("5", "7a"),
+    the way OCR loses a label, and keeps their values.
     """
     from reportlab.pdfgen.canvas import Canvas
 
@@ -334,7 +385,8 @@ def write_text_pdf(
         c.line(x0, PAGE_H - 182, x0, PAGE_H - (GRID_TOP + len(RECORD) * ROW_PITCH))
     if field:
         c.acroForm.textfield(name="remarks", value=field, x=40, y=PAGE_H - 550, borderWidth=0)
-    for t in sorted(_texts(noisy=noisy, title=title, omit=omit), key=lambda t: (t.top, t.x)):
+    drawn = _texts(noisy=noisy, overlap=overlap, title=title, omit=omit, cells=cells, blocks=blocks)
+    for t in sorted(drawn, key=lambda t: (t.top, t.x)):
         c.setFont(t.font, t.size)
         if t.then:
             _draw_run(c, t)
@@ -390,6 +442,27 @@ def write_ocr_pdf(png: Path, out_pdf: Path, *, psm: int = 11) -> Path:
         check=True,
         capture_output=True,
     )
+    return out_pdf
+
+
+def write_scan_pdf(
+    png: Path, out_pdf: Path, *, cells: Mapping[tuple[str, int], str] = SCAN_CELLS
+) -> Path:
+    """`png` as the page, with a text layer over it that garbles `cells`, the way a scanner
+    writes a PDF: the image is what the page says, the text layer is one reading of it. The
+    image is drawn from the clean form, so a cell garbled here is still right on the page.
+    """
+    from reportlab.pdfgen.canvas import Canvas
+
+    c = Canvas(str(out_pdf), pagesize=(PAGE_W, PAGE_H))
+    c.drawImage(str(png), 0, 0, width=PAGE_W, height=PAGE_H)
+    for t in sorted(_texts(cells=cells), key=lambda t: (t.top, t.x)):
+        text = c.beginText(t.x, PAGE_H - t.top)
+        text.setTextRenderMode(3)  # invisible: the image is what shows
+        text.setFont(t.font, t.size)
+        text.textOut(t.text)
+        c.drawText(text)
+    c.save()
     return out_pdf
 
 

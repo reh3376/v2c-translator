@@ -39,11 +39,6 @@ COURSES = [("BASIC LEADER COURSE", 4.0, 2012), ("ADVANCED LEADER COURSE", 6.0, 2
 NET_ACTIVE, FOREIGN = Duration(12, 3, 15), Duration(1, 4, 11)
 
 
-@pytest.fixture(autouse=True)
-def read_by_layout(monkeypatch):
-    monkeypatch.setattr("dd214kw.extractors.dd214.READ_BY_LAYOUT", True)
-
-
 needs_tesseract = pytest.mark.skipif(
     not form.tools_available(), reason="needs the tesseract and pdftoppm binaries"
 )
@@ -69,6 +64,14 @@ def noisy_pdf(pdfs):
 
 
 @pytest.fixture(scope="module")
+def overlap_pdf(pdfs):
+    """The form as the user's scanner left it: every value on its printed label's own line,
+    block 12's row labels off the values they name, and blocks 13 and 14's labels sharing a
+    line. See `synthetic_dd214.OVERLAP_SHIFT`."""
+    return form.write_text_pdf(pdfs / "overlap.pdf", overlap=True)
+
+
+@pytest.fixture(scope="module")
 def scan_png(pdfs, clean_pdf):
     if not form.tools_available():
         pytest.skip("needs the tesseract and pdftoppm binaries")
@@ -85,6 +88,13 @@ def ocr_pdf(pdfs, scan_png):
 def image_pdf(pdfs, scan_png):
     """The scan alone, with no text layer: `--ocr` has to read it."""
     return form.write_image_pdf(scan_png, pdfs / "image.pdf")
+
+
+@pytest.fixture(scope="module")
+def scan_text_pdf(pdfs, scan_png):
+    """The scan's image with a text layer over it, as a scanner's own PDF holds both, and
+    with block 12c's years garbled in the text layer alone."""
+    return form.write_scan_pdf(scan_png, pdfs / "scan-text.pdf")
 
 
 def _line_order(pdf: Path):
@@ -118,7 +128,8 @@ def test_line_order_mixes_side_by_side_blocks(noisy_pdf):
 
 
 @pytest.mark.parametrize(
-    "variant", ["clean_pdf", "noisy_pdf", pytest.param("ocr_pdf", marks=needs_tesseract)]
+    "variant",
+    ["clean_pdf", "noisy_pdf", "overlap_pdf", pytest.param("ocr_pdf", marks=needs_tesseract)],
 )
 def test_each_block_is_read_from_its_own_box(variant, request):
     doc, facts = read(request.getfixturevalue(variant))
@@ -140,6 +151,62 @@ def test_each_block_is_read_from_its_own_box(variant, request):
     ] == COURSES
 
 
+def test_rows_that_overlap_their_labels_are_still_read_whole(overlap_pdf):
+    """The reported failure on a real form: the printed labels and the typed values share
+    lines, so no label read whole, blocks grew over their neighbours and block 12's rows
+    came out one row off. Read by position, the page still gives up every block."""
+    layout = read_form(*_loaded(overlap_pdf)).layout
+    read = {r.block for r in layout.regions if r.status is Status.READ}
+    assert read == {"2", "4a", "4b", "11", "13", "14"}
+    assert len(layout.cells) == 27
+    assert {c.status for c in layout.cells} == {Status.READ}
+
+
+def test_block_12_rows_come_from_the_columns_not_the_row_labels(overlap_pdf):
+    """Block 12f's label sits beside row g's value on this form. Boxed from the label, the
+    reader took the zeroes of row g for the foreign service of row f."""
+    profile = resolve(read(overlap_pdf)[1])
+    assert profile.service_time["foreign"] == FOREIGN
+    assert profile.service_time["net_active"] == NET_ACTIVE
+    assert profile.service_time["sea"] == Duration(0, 0, 0)
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_a_cell_the_text_layer_garbled_is_read_again_from_the_page(scan_text_pdf):
+    """The scan behind the text layer still shows block 12c's years. A row the text layer
+    lost is read off the image, which is where the user's net active service went."""
+    doc, facts = read(scan_text_pdf)
+    assert resolve(facts).service_time["net_active"] == NET_ACTIVE
+    assert [n for n in doc.notes if "12c" in n] == []
+
+
+def test_a_net_active_service_the_dates_contradict_is_noted_not_corrected(tmp_path):
+    """Block 12c is the time between 12a and 12b, counted inclusively. Time lost (block 29)
+    is withheld, so a figure that does not follow from the dates is reported, not changed."""
+    pdf = form.write_text_pdf(tmp_path / "dd214.pdf", cells={("c", 2): "29"})
+    doc, facts = read(pdf)
+    assert resolve(facts).service_time["net_active"] == Duration(12, 3, 29)
+    assert [n for n in doc.notes if n.startswith("Block 12c")] == [
+        "Block 12c (net active service this period) is 14 days longer than the period "
+        "between the dates in 12a and 12b; the form's own figure is used (time lost is "
+        "not read)."
+    ]
+
+
+def test_an_entry_split_across_lines_stays_one_entry(tmp_path):
+    """Block 11's entries are separated by "//", which OCR may write as "/ /", and the box
+    wraps them. An entry that wraps must not become two, or a specialty loses its months."""
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf",
+        blocks={
+            "11": "35M20 HUMAN INTELLIGENCE COLLECTOR 8 YRS 3 MOS / / "
+            "35F10 INTELLIGENCE ANALYST 4 YRS 0 MOS / / NOTHING FOLLOWS"
+        },
+    )
+    assert _occupations(resolve(read(pdf)[1])) == SPECIALTIES
+
+
 def test_unreadable_cells_are_left_out_not_guessed(noisy_pdf):
     """Block 12d's day reads 80 and 12g's month 0B: neither is a value, so neither is used."""
     doc, facts = read(noisy_pdf)
@@ -153,7 +220,8 @@ def test_unreadable_cells_are_left_out_not_guessed(noisy_pdf):
 
 
 @pytest.mark.parametrize(
-    "variant", ["clean_pdf", "noisy_pdf", pytest.param("ocr_pdf", marks=needs_tesseract)]
+    "variant",
+    ["clean_pdf", "noisy_pdf", "overlap_pdf", pytest.param("ocr_pdf", marks=needs_tesseract)],
 )
 def test_personal_blocks_never_reach_facts_or_report(variant, request, capsys):
     assert _leaked(request.getfixturevalue(variant), capsys) == []
@@ -171,17 +239,23 @@ def test_personal_blocks_never_reach_facts_or_report(variant, request, capsys):
 def test_block_whose_bounding_label_is_lost_is_refused_not_grown(omit, refused, tmp_path, capsys):
     pdf = form.write_text_pdf(tmp_path / "dd214.pdf", omit=omit)
     assert _leaked(pdf, capsys) == []
-    layout = read_form(load_text(pdf).words).layout
+    layout = read_form(*_loaded(pdf)).layout
     assert {r.block for r in layout.regions if r.status is Status.REFUSED} == refused
     notes = read(pdf)[0].notes
     assert all(any(n.startswith(f"Block {b} ") for n in notes) for b in refused)
+
+
+def _loaded(pdf: Path):
+    """What the reader is given for `pdf`: its words, their lines, and the scan behind them."""
+    content = load_text(pdf)
+    return content.words, content.lines, content.scan
 
 
 def _leaked(pdf: Path, capsys) -> list[str]:
     """The fake personal values that reach the reader's text, the facts or the report."""
     doc, facts = read(pdf)
     outputs = [
-        read_form(load_text(pdf).words).text or "",
+        read_form(*_loaded(pdf)).text or "",
         json.dumps([asdict(doc), *map(asdict, facts), asdict(resolve(facts))], default=str),
     ]
     if DEFAULT_INDEX.exists():
