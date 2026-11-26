@@ -1,8 +1,11 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useReducer, useRef, useState, type DragEvent } from "react";
 import { engine, type Report, type TranslateFailure, type TranslateResult } from "@/engine";
+import { BranchBand } from "./branch-band";
 import { formatBytes } from "./format";
+import { pressable, sweep } from "./motion";
 import { ReportView } from "./report-view";
 import { loadSamples } from "./samples";
 
@@ -55,7 +58,9 @@ export function Translator() {
   const [{ files, phase }, dispatch] = useReducer(reduce, { files: [], phase: { kind: "editing" } });
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const reduced = useReducedMotion() ?? false;
   const busy = phase.kind === "translating";
+  const detected = phase.kind === "done" ? phase.report.profile.context?.branch : null;
 
   useEffect(() => {
     const keepPage = (event: globalThis.DragEvent) => event.preventDefault();
@@ -101,14 +106,18 @@ export function Translator() {
 
   return (
     <>
+      <BranchBand detected={detected} />
+
       <section className="upload" aria-labelledby="upload-heading">
         <div className="upload-main">
           <h2 id="upload-heading" className="visually-hidden">
             Your documents
           </h2>
-          <div
+          <motion.div
             className="dropzone"
             data-dragging={dragging || undefined}
+            animate={{ scale: dragging ? 1.006 : 1 }}
+            transition={{ duration: 0.16, ease: [0.22, 0.61, 0.36, 1] }}
             onDragOver={(event) => {
               event.preventDefault();
               if (!busy) setDragging(true);
@@ -119,9 +128,15 @@ export function Translator() {
             <p className="dropzone-title">Drop your documents here</p>
             <p className="dropzone-or">
               or{" "}
-              <button type="button" className="button secondary" disabled={busy} onClick={() => input.current?.click()}>
+              <motion.button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => input.current?.click()}
+                {...pressable(reduced)}
+              >
                 Choose files
-              </button>
+              </motion.button>
             </p>
             <p className="hint">
               DD-214s, DD-215s and your VMET, as PDF, text or JSON. Scans work when OCR is installed. Up to 10 files, 10
@@ -138,7 +153,7 @@ export function Translator() {
                 event.currentTarget.value = "";
               }}
             />
-          </div>
+          </motion.div>
 
           {files.length > 0 ? (
             <ul className="files" aria-label="Chosen documents">
@@ -162,14 +177,20 @@ export function Translator() {
 
           <div className="actions">
             {files.length > 0 ? (
-              <button type="button" className="button primary" disabled={busy} onClick={() => translate(files)}>
+              <motion.button
+                type="button"
+                className="button primary"
+                disabled={busy}
+                onClick={() => translate(files)}
+                {...pressable(reduced)}
+              >
                 {busy ? "Translating…" : `Translate ${files.length === 1 ? "1 document" : `${files.length} documents`}`}
-              </button>
+              </motion.button>
             ) : (
               <>
-                <button type="button" className="button secondary" onClick={trySamples}>
+                <motion.button type="button" className="button secondary" onClick={trySamples} {...pressable(reduced)}>
                   Try with sample documents
-                </button>
+                </motion.button>
                 <p className="hint">Made-up records for a fictional Army staff sergeant.</p>
               </>
             )}
@@ -177,6 +198,8 @@ export function Translator() {
               {busy ? `Reading ${files.length === 1 ? "1 document" : `${files.length} documents`}…` : ""}
             </p>
           </div>
+
+          <Progress busy={busy} />
 
           {phase.kind === "failed" ? <Failure error={phase.error} /> : null}
         </div>
@@ -199,6 +222,22 @@ export function Translator() {
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * The wait while the translator reads the documents. The track is always in the layout, so
+ * starting and finishing moves nothing on the page. The wait is announced by the status line
+ * beside the button, which is why this is hidden from screen readers.
+ */
+function Progress({ busy }: { busy: boolean }) {
+  const reduced = useReducedMotion() ?? false;
+  const slide = sweep(reduced);
+
+  return (
+    <div className="progress" data-busy={busy || undefined} aria-hidden="true">
+      {busy ? slide ? <motion.span className="progress-bar" {...slide} /> : <span className="progress-bar still" /> : null}
+    </div>
   );
 }
 

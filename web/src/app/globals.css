@@ -8,6 +8,10 @@
   --accent: #1f5d66;
   --accent-dark: #174a52;
   --accent-tint: #e3eeee;
+  /* Warm counterweight to the teal. Two uses only: the branch the documents named, and the
+     crisis line. Nothing else on this page earns that much attention. */
+  --mark: #8a6520;
+  --mark-tint: #f6ecd8;
   --record: #edf0f2;
   --warn-ink: #6b4500;
   --warn-bg: #fff3d6;
@@ -78,12 +82,13 @@ ul {
 .masthead,
 main,
 .page-footer {
-  width: min(72rem, 100% - 2 * var(--gutter));
+  width: min(78rem, 100% - 2 * var(--gutter));
   margin-inline: auto;
 }
 
 .masthead {
-  padding-block: 1.5rem 0;
+  padding-block: 1.25rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
 }
 
 .wordmark {
@@ -95,8 +100,30 @@ main,
 /* Intro */
 
 .intro {
-  padding-block: clamp(2.5rem, 6vw, 4.5rem) 2rem;
+  padding-block: clamp(2.5rem, 6vw, 4rem) 1.75rem;
   max-width: var(--measure);
+  display: grid;
+  align-items: end;
+  gap: 0 3rem;
+}
+
+/* Wide enough for the headline and the summary to sit side by side, which is also the width at
+   which all six pictures fit in one row. */
+@media (min-width: 64rem) {
+  .intro {
+    max-width: none;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+
+  .intro h1 {
+    max-width: 17ch;
+  }
+
+  .intro .lede {
+    margin-top: 0;
+    max-width: 32rem;
+    padding-bottom: 0.3rem;
+  }
 }
 
 h1 {
@@ -318,9 +345,12 @@ h1 {
   outline: none;
 }
 
+/* A hairline above each section heading, the way a form rules one block off from the next. */
 .results h3 {
   margin-top: 3rem;
   margin-bottom: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule-strong);
   font-size: 1.375rem;
   line-height: 1.3;
   font-weight: 680;
@@ -337,8 +367,11 @@ h1 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 1.25rem 2rem;
-  padding-block: 1.25rem;
-  border-block: 1px solid var(--rule);
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
 }
 
 .summary dt {
@@ -497,6 +530,8 @@ h1 {
 
 .results .notes h3 {
   margin: 0 0 0.5rem;
+  padding-top: 0;
+  border-top: none;
   font-size: 1.125rem;
 }
 
@@ -573,5 +608,267 @@ h1 {
 
   .file-size {
     grid-row: 2;
+  }
+}
+
+/* Branch band
+   Six pictures on one horizon, read left to right from sea level to orbit. On a wide screen they
+   sit edge to edge and the horizons line up, so the row is one scene; narrower, they wrap and each
+   stands on its own. */
+
+.band {
+  margin-top: 0.5rem;
+  margin-bottom: clamp(2rem, 5vw, 3rem);
+}
+
+.band-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.band-panel figure {
+  margin: 0;
+  display: grid;
+}
+
+.band-panel img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-bottom: 1px solid var(--rule);
+}
+
+.band-panel figcaption {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem 0.65rem;
+  border-top: 3px solid transparent;
+}
+
+.band-name {
+  font-weight: 640;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+}
+
+.band-setting,
+.band-credit {
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.band-panel + .band-panel {
+  border-left: 1px solid var(--rule);
+}
+
+.band-panel[data-dimmed] img {
+  opacity: 0.5;
+}
+
+.band-panel[data-marked] figcaption {
+  border-top-color: var(--mark);
+  background: var(--mark-tint);
+}
+
+.band-panel[data-marked] .band-setting {
+  color: var(--mark);
+  font-weight: 600;
+}
+
+.band-caption {
+  margin-top: 0.75rem;
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+  max-width: 56rem;
+}
+
+.band-caption strong {
+  color: var(--ink);
+}
+
+/* Progress
+   The track is always in the layout, so starting and finishing the work moves nothing. */
+
+.progress {
+  height: 4px;
+  margin-top: 1rem;
+  border-radius: 2px;
+  background: transparent;
+  overflow: hidden;
+}
+
+.progress[data-busy] {
+  background: var(--accent-tint);
+}
+
+.progress-bar {
+  display: block;
+  width: 30%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.progress-bar.still {
+  width: 100%;
+  opacity: 0.55;
+}
+
+/* Disclosure in the specialties table */
+
+.occupations-more {
+  overflow: hidden;
+}
+
+.occupations-more li:first-child {
+  margin-top: 0.3rem;
+}
+
+.specialties .button.quiet {
+  margin-top: 0.4rem;
+  margin-left: -0.6rem;
+  font-size: 0.9375rem;
+}
+
+/* Resources */
+
+.resources {
+  margin-top: clamp(3.5rem, 8vw, 6rem);
+  padding-top: 2.5rem;
+  border-top: 2px solid var(--ink);
+}
+
+.resources h2 {
+  font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.25rem);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.resources-lede {
+  margin-top: 0.75rem;
+  color: var(--ink-muted);
+  max-width: var(--measure);
+}
+
+.resource-groups {
+  margin-top: 2rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem clamp(1.5rem, 4vw, 3.5rem);
+  align-items: start;
+}
+
+.resource-groups h3 {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule-strong);
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 680;
+}
+
+.resource-list {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 1.1rem;
+}
+
+.resource-list li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.resource-list a {
+  justify-self: start;
+  color: var(--accent-dark);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+.resource-list a:hover {
+  color: var(--ink);
+  text-decoration-thickness: 2px;
+}
+
+.resource-blurb {
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  max-width: 34rem;
+}
+
+.crisis {
+  margin-top: 2.5rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--mark);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.resources .crisis h3 {
+  padding-top: 0;
+  border-top: none;
+  font-size: 1.125rem;
+}
+
+.crisis p {
+  max-width: 58rem;
+}
+
+.crisis a {
+  color: var(--accent-dark);
+  font-weight: 600;
+  text-underline-offset: 0.18em;
+}
+
+@media (max-width: 72rem) {
+  .band-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .band-panel:nth-child(3n + 1) {
+    border-left: none;
+  }
+
+  .band-panel:nth-child(n + 4) {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+@media (max-width: 52rem) {
+  .resource-groups {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem;
+  }
+}
+
+@media (max-width: 40rem) {
+  .band-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .band-panel:nth-child(n) {
+    border-left: none;
+    border-top: none;
+  }
+
+  .band-panel:nth-child(2n) {
+    border-left: 1px solid var(--rule);
+  }
+
+  .band-panel:nth-child(n + 3) {
+    border-top: 1px solid var(--rule);
   }
 }
