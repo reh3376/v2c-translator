@@ -64,9 +64,19 @@ wait_for() {
 }
 
 step "the image"
+# Two numbers, because `docker image inspect` reports whichever the local daemon happens
+# to hold: the sum of compressed layers for an image buildkit has just loaded, and the
+# uncompressed total for one unpacked on disk. Those differ by about three times, which is
+# enough to make a size quoted in a document meaningless unless it says which it is. So:
+# what it costs to pull, and what it costs to keep.
 bytes=$(docker image inspect "$IMAGE" --format '{{.Size}}') || fail "no such image: $IMAGE"
-echo "size: ${bytes} bytes ($((bytes / 1048576)) MiB)"
-echo "IMAGE_MIB=$((bytes / 1048576))" >> "${GITHUB_OUTPUT:-/dev/null}"
+echo "size, as this daemon holds it: ${bytes} bytes ($((bytes / 1048576)) MiB)"
+rootfs=$(docker run --rm --user 0 --entrypoint du "$IMAGE" -xsm / 2>/dev/null | cut -f1 || echo 0)
+echo "size, unpacked root filesystem:  ${rootfs} MiB"
+{
+    echo "IMAGE_MIB=$((bytes / 1048576))"
+    echo "ROOTFS_MIB=${rootfs}"
+} >> "${GITHUB_OUTPUT:-/dev/null}"
 
 step "1. hosted mode refuses to boot without the Turnstile secret"
 # Detached and then waited on, with a deadline: a container that stays up is the failure

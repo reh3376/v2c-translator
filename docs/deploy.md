@@ -238,14 +238,20 @@ processes and tesseract together.
 
 | | Peak | |
 | --- | --- | --- |
-| Image on disk | 526 MiB | |
+| Image, to pull | 190 MiB | the sum of the compressed layers |
+| Image, unpacked on disk | 556 MiB | what it occupies on the box |
 | Idle, just booted | 63 MiB | |
 | One text translation | 72 MiB | |
 | One 1-page 300 dpi scan, OCR'd | 456 MiB | ~4.6 s |
 | Two of those at once | 890 MiB | |
-| One 5-page scan, OCR'd | 811 MiB | 35 s |
+| One 5-page scan, OCR'd | 811-851 MiB | 35 s; three runs, two local and one on a GitHub runner |
 
 Pages drive it, not file size: the 1-page and the 5-page scan are both about 1 MB.
+
+The two image sizes are both worth knowing and are easy to confuse, which is why
+`deploy/smoke.sh` prints both and labels them. `docker image inspect` reports whichever
+the local daemon holds, and for an image buildkit has just loaded that is the compressed
+total, about a third of the unpacked one.
 
 Two things multiply it. A translation runs `dd214kw translate` **twice in parallel**, once
 for JSON and once for Markdown, so a scan is OCR'd twice. And `V2C_MAX_CONCURRENT`

@@ -188,6 +188,7 @@ jobs:
             echo "- \`${{ steps.tags.outputs.sha_tag }}\`"
             echo "- \`${{ steps.tags.outputs.main_tag }}\`"
             echo "- pushed: ${PUSH}"
-            echo "- size: ${{ steps.smoke.outputs.IMAGE_MIB || 'n/a' }} MiB"
+            echo "- size to pull: ${{ steps.smoke.outputs.IMAGE_MIB || 'n/a' }} MiB"
+            echo "- size unpacked: ${{ steps.smoke.outputs.ROOTFS_MIB || 'n/a' }} MiB"
             echo "- peak memory under OCR: ${{ steps.smoke.outputs.PEAK_RSS_MIB || 'n/a' }} MiB"
           } >> "$GITHUB_STEP_SUMMARY"
