@@ -33,6 +33,11 @@ BRANCH_SVCS: dict[str, list[str]] = {
 }
 ALL_PRIMARY = ["A", "F", "H", "M", "N", "C", "P"]
 
+# A number in a specialty entry that is no code: a year, or all zeros. A service's code
+# list holds both ("1990", "0000 No NEC assigned"), so without this a date or a blank cell
+# that reached the entry matches a real code of some branch.
+NOT_A_CODE_RE = re.compile(r"(?:19|20)\d{2}|0+")
+
 MAX_OCCUPATIONS_PER_SPECIALTY = 8
 MIN_ELEMENT_IMPORTANCE = 3.0  # O*NET 1-5 importance scale
 TITLE_MATCH_CUTOFF = 88
@@ -42,11 +47,16 @@ TITLE_MATCH_CUTOFF = 88
 
 
 def _candidate_codes(raw: str, code: str | None = None) -> list[str]:
+    """The tokens of `raw` that could be a military code, `code` first when one is given."""
     u = raw.upper()
     toks: list[str] = [code.strip().upper()] if code else []
     toks += re.findall(r"\(([A-Z]{2,4})\)", u)  # "ELECTRONICS TECHNICIAN (ET)"
     toks += re.findall(r"^\s*([A-Z]{2,4})\s*[-\u2013/:]", u)  # "ET - ELECTRONICS TECHNICIAN"
-    toks += [t for t in re.findall(r"\b[A-Z0-9]{3,8}\b", u) if re.search(r"\d", t)]
+    toks += [
+        t
+        for t in re.findall(r"\b[A-Z0-9]{3,8}\b", u)
+        if re.search(r"\d", t) and not NOT_A_CODE_RE.fullmatch(t)
+    ]
     return list(dict.fromkeys(toks))
 
 
