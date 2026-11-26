@@ -207,6 +207,38 @@ def test_an_entry_split_across_lines_stays_one_entry(tmp_path):
     assert _occupations(resolve(read(pdf)[1])) == SPECIALTIES
 
 
+# Block 11's printed label as a scanner's OCR left it, its last words garbled. The typed
+# value sits on this line too (see the overlap fixture), so the label's tail runs into the
+# first entry's title.
+GARBLED_LABEL_11 = (
+    "11. PRIMARY SPECIALTY (List number, title and years and months in specialty. List\n"
+    "additional specialty numbers and titles involving periods of\nONE OR MO,E S/RS!"
+)
+# One entry wrapping between its years and its months, an entry separator OCR read as
+# "I I", and a misread "NOTHING FOLLOWS". The codes, titles and times are invented.
+WRAPPED_SPECIALTIES = (
+    "25U60 2B SI GI NT SGT/ CHIEF - 11 YRS\n"
+    "2 MOS I I 25B4L NETWORK SYSTEMS OPERATOR - 23 YRS 5 MOS I I NOTHTNG FOLLOWS"
+)
+
+
+def test_block_11s_wrapped_label_does_not_reach_the_first_specialty(tmp_path):
+    """The reported failure. The end of block 11's printed label came out as part of the
+    first entry's title; the entry wrapped between "11 YRS" and "2 MOS", so its months
+    began the next entry's title instead of counting; and "NOTHING FOLLOWS" became an
+    entry of its own."""
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf",
+        labels={"11": GARBLED_LABEL_11},
+        blocks={"11": WRAPPED_SPECIALTIES},
+        label_on_value_line=("11",),
+    )
+    assert _occupations(resolve(read(pdf)[1])) == [
+        ("25U60 2B SI GI NT SGT/ CHIEF", 134),
+        ("25B4L NETWORK SYSTEMS OPERATOR", 281),
+    ]
+
+
 def test_unreadable_cells_are_left_out_not_guessed(noisy_pdf):
     """Block 12d's day reads 80 and 12g's month 0B: neither is a value, so neither is used."""
     doc, facts = read(noisy_pdf)

@@ -7,6 +7,7 @@ from dd214kw.extractors import read
 from dd214kw.parse import (
     detect_version,
     parse_courses,
+    parse_decorations,
     parse_duration,
     parse_specialties,
 )
@@ -75,6 +76,55 @@ def test_durations():
 def test_specialties_without_separators():
     specs = parse_specialties("0311 RIFLEMAN 3 YRS 0 MOS 3531 MOTOR VEHICLE OPERATOR 1 YR 6 MOS")
     assert [s.months for s in specs] == [36, 18]
+
+
+# What a scanner's text layer left in blocks 11, 13 and 14 of a real AUG 2009 form: the
+# "//" between entries read as "I I", a letter lost to the replacement character, a line
+# wrapped between an entry's years and its months, and "NOTHING FOLLOWS" misread. The
+# award and course text is the scan's; the specialty codes, titles and times are invented.
+OCR_SPECIALTIES = (
+    "25U60 2B SI GI NT SGT/ CHIEF - 11 YRS\n"
+    "2 �OS I I 25B4L NETWORK SYSTEMS OPERATOR - 23 YRS 5 MOS I I NOTHTNG FOLLOWS"
+)
+OCR_AWARDS = (
+    "JOL T MERLTORLOUS UNIT AWARD B 3RD AWARD) I I ARMY GOOD CONDUCT\n"
+    "CONT IN BL CK 18\nNOTHTNG FOLLOWS"
+)
+OCR_COURSES = "ADV NCO CR, TANCOC � 2004\nAIRBORNE, I I SOCC J NTRUCTOR T AL NI NG CRS 2015"
+
+
+def test_a_specialty_wrapped_between_its_years_and_months_keeps_both():
+    """The entries are separated by "//", which OCR read as "I I", so the line break inside
+    the first entry is only a wrap: "11 YRS" and "2 MOS" are one time in specialty, and the
+    second entry's title starts at its code."""
+    specs = parse_specialties(OCR_SPECIALTIES)
+    assert [(s.raw, s.months) for s in specs] == [
+        ("25U60 2B SI GI NT SGT/ CHIEF - 11 YRS 2 OS", 134),
+        ("25B4L NETWORK SYSTEMS OPERATOR - 23 YRS 5 MOS", 281),
+    ]
+
+
+def test_a_misread_nothing_follows_is_not_an_entry():
+    for entries in (
+        parse_specialties(OCR_SPECIALTIES),
+        parse_decorations(OCR_AWARDS),
+        parse_courses(OCR_AWARDS),
+    ):
+        assert not any("NOTH" in str(entry) for entry in entries)
+
+
+def test_a_continued_in_block_marker_is_not_an_award():
+    assert not any("CONT IN" in d for d in parse_decorations(OCR_AWARDS))
+
+
+def test_an_ocr_read_separator_splits_two_merged_entries():
+    """ "//" read as "I I" merged two awards into one entry, and two courses into one."""
+    assert len(parse_decorations(OCR_AWARDS)) == 2
+    assert [c.raw for c in parse_courses(OCR_COURSES)] == [
+        "ADV NCO CR, TANCOC 2004",
+        "AIRBORNE",
+        "SOCC J NTRUCTOR T AL NI NG CRS 2015",
+    ]
 
 
 def test_courses_units():
