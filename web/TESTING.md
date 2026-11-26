@@ -52,7 +52,7 @@ Each picture is a button. Pressing it plays that branch's scene once.
     | Navy | A pennant breaks out at the mast, then three puffs of white smoke rise from the forward gun and drift out to open sea | 2.9 s |
     | Coast Guard | The small boat comes alongside, then two crew step across to the cutter's after deck | 3.0 s |
     | Marine Corps | Three Marines come down the ramp and walk up the sand, the nearest the largest | 2.7 s |
-    | Army | A tracked carrier pulls up in front of the truck, its rear ramp drops, and three soldiers step down behind it | 3.3 s |
+    | Army | A tracked carrier pulls up to the right of the truck already in the scene, and three soldiers step down behind it and come forward | 3.4 s |
     | Air Force | Three swept-wing silhouettes cross the frame in formation, trailing contrails | 2.4 s |
     | Space Force | A map grid comes up on the earth, a soft beam sweeps across it, and three status markers settle into view | 3.2 s |
 
@@ -60,6 +60,9 @@ Each picture is a button. Pressing it plays that branch's scene once.
     casualty is drawn, and no seal, emblem, logo, insignia or unit marking appears anywhere.
     Figures are plain silhouettes and no face is drawn. When the scene ends, the picture is
     exactly as it was before it started.
+    In the Army scene in particular, watch the two vehicles: the carrier arrives from off the
+    right edge and parks clear of the truck, so at no point in the scene do the two overlap, and
+    when it has gone the truck is alone on the track with nothing ghosted behind it.
 16. Press a picture again while it is still playing. Expected: the scene starts over from the
     beginning. Nothing is left behind from the run you interrupted.
 17. Press one picture, and while it is playing press a second. Expected: both play, each at its

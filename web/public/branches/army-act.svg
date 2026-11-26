@@ -1,9 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
-  <!-- A tracked infantry carrier pulls up nearer the viewer than the truck already in the scene,
-       its rear ramp drops, and three soldiers step down behind it. The silhouette is generic: no
+  <!-- A tracked infantry carrier pulls up to the right of the truck already in the scene, and
+       three soldiers step down behind it and come forward. The silhouette is generic: no
        marking, number, emblem or insignia, and the turret carries nothing. The figures are a
        little larger than true scale against the vehicle, because at the size of a tile a
-       true-scale figure is two pixels of nothing. -->
+       true-scale figure is two pixels of nothing.
+
+       The carrier is parked clear of the truck, and it arrives from off the right edge, so the
+       two vehicles never overlap at any point in the scene. The truck's own shadow reaches x298
+       and nothing here goes left of x310. -->
 
   <defs>
     <g id="walker">
@@ -13,35 +17,31 @@
   </defs>
 
   <g data-actor="ifv">
-    <ellipse cx="308" cy="298" rx="60" ry="4" fill="#0f1f20" opacity="0.25" />
-    <path d="M252 284h114v9H252Z" fill="#101f20" />
+    <ellipse cx="370" cy="290" rx="60" ry="4" fill="#0f1f20" opacity="0.25" />
+    <path d="M314 276h114v9H314Z" fill="#101f20" />
     <g fill="#24403c">
-      <circle cx="262" cy="288" r="4.5" />
-      <circle cx="281" cy="288" r="4.5" />
-      <circle cx="300" cy="288" r="4.5" />
-      <circle cx="319" cy="288" r="4.5" />
-      <circle cx="338" cy="288" r="4.5" />
-      <circle cx="357" cy="288" r="4.5" />
+      <circle cx="324" cy="280" r="4.5" />
+      <circle cx="343" cy="280" r="4.5" />
+      <circle cx="362" cy="280" r="4.5" />
+      <circle cx="381" cy="280" r="4.5" />
+      <circle cx="400" cy="280" r="4.5" />
+      <circle cx="419" cy="280" r="4.5" />
     </g>
-    <path d="M254 284v-14l20-14h92v28Z" fill="#15292a" />
-    <path d="M288 256v-13h34l3 13Z" fill="#1b3233" />
-    <path d="M308 246h11v5h-11Z" fill="#43605c" />
-    <path d="M276 264h13v7h-13Z" fill="#2c4442" />
+    <path d="M316 276v-14l20-14h92v28Z" fill="#15292a" />
+    <path d="M350 248v-13h34l3 13Z" fill="#1b3233" />
+    <path d="M370 238h11v5h-11Z" fill="#43605c" />
+    <path d="M338 256h13v7h-13Z" fill="#2c4442" />
   </g>
 
-  <g data-actor="ramp">
-    <path d="M366 280l26 10v6l-26-6Z" fill="#17292a" />
-  </g>
-
-  <g data-actor="troop-a" transform="translate(378 288) scale(0.85)" fill="#15292a">
+  <g data-actor="troop-a" transform="translate(430 288) scale(0.8)" fill="#15292a">
     <use href="#walker" />
   </g>
 
-  <g data-actor="troop-b" transform="translate(394 296) scale(1)" fill="#122426">
+  <g data-actor="troop-b" transform="translate(408 296) scale(0.95)" fill="#122426">
     <use href="#walker" />
   </g>
 
-  <g data-actor="troop-c" transform="translate(410 304) scale(1.12)" fill="#101f20">
+  <g data-actor="troop-c" transform="translate(384 304) scale(1.1)" fill="#101f20">
     <use href="#walker" />
   </g>
 </svg>
