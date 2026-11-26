@@ -22,6 +22,9 @@ __pycache__/
 !/tests/fixtures/**
 
 # Web app dependencies and build and test output
+# `pnpm screenshots` writes PNGs, and scripts/pii_guard.py refuses to let any image be committed.
+# Rerun the script to see them; web/TESTING.md says how.
+/web/docs/screenshots/
 /web/node_modules/
 /web/.next/
 /web/next-env.d.ts

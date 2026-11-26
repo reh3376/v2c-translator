@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320" role="img" aria-label="A utility vehicle on a dirt track below a ridge line, drawn as a flat silhouette.">
+  <defs>
+    <linearGradient id="army-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b8d1d3" />
+      <stop offset="0.7" stop-color="#dfeae3" />
+      <stop offset="1" stop-color="#f1ead6" />
+    </linearGradient>
+    <linearGradient id="army-near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b6d62" />
+      <stop offset="1" stop-color="#2b4844" />
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="214" fill="url(#army-sky)" />
+  <circle cx="86" cy="70" r="23" fill="#f0e3bb" opacity="0.8" />
+
+  <path d="M0 160l72-30 58 22 70-38 80 34 60-24 78 30 62-20v48H0Z" fill="#9cbab3" opacity="0.8" />
+  <path d="M0 206l84-34 86 28 80-34 82 32 70-24 78 28v24H0Z" fill="#6d9089" />
+  <path d="M0 228l96-18 92 12 96-16 92 14 104-10v110H0Z" fill="url(#army-near)" />
+
+  <path d="M60 320c62-40 130-58 196-82l44-16 8 14-46 17c-64 23-130 42-186 67Z" fill="#cfbf96" opacity="0.55" />
+
+  <g fill="#15292a">
+    <path d="M214 250h74v18h-74Z" />
+    <path d="M238 232h34l8 18h-42Z" />
+    <path d="M244 236h22v12h-22Z" fill="#43605c" />
+    <circle cx="230" cy="270" r="7" />
+    <circle cx="274" cy="270" r="7" />
+  </g>
+  <g fill="#0f1f20" opacity="0.25">
+    <ellipse cx="252" cy="278" rx="46" ry="4" />
+  </g>
+
+  <g fill="#23403a" opacity="0.85">
+    <path d="M36 296c5-13 9-17 11-24 5 7 8 15 10 24Z" />
+    <path d="M404 268c4-10 7-14 9-20 4 6 6 12 8 20Z" />
+    <path d="M346 308c5-12 8-16 10-23 4 7 7 14 9 23Z" />
+    <path d="M136 272c3-8 5-11 7-16 3 5 5 10 6 16Z" />
+  </g>
+</svg>

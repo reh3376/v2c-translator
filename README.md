@@ -385,6 +385,26 @@ schema in [`web/src/engine/report.ts`](web/src/engine/report.ts) for
 **Markdown.** The route runs the CLI twice in parallel, with `-f json` and with `-f md`.
 `render.py` stays the only Markdown renderer.
 
+**Pictures.** One per branch, under [`web/public/branches/`](web/public/branches) and listed in
+[`web/src/content/branches.ts`](web/src/content/branches.ts) against the names `detect_branch`
+returns. They are original illustrations drawn for this page, sharing one horizon from sea level
+to orbit, and they carry no service seal, emblem, logo or insignia: those are trademarks each
+service licenses, and using one would imply the endorsement the footer disclaims. Once a report
+names a branch, that picture is marked. A public-domain DoD or DVIDS photograph can replace any of
+them; the type requires a credit line with it, and `web/TESTING.md` has the steps.
+
+**Resources.** The links under "Resources for veterans" live in
+[`web/src/content/resources.ts`](web/src/content/resources.ts), open in a new tab, and carry no
+query string. `pnpm check-links` visits them all and fails on a dead one. The weekly
+[Link check](.github/workflows/link-check.yml) workflow runs it, on a schedule and on demand,
+rather than in pull-request CI, where somebody else's outage would block a merge.
+
+**Motion.** [Motion](https://motion.dev) (`motion/react`), bundled like everything else. The whole
+animation vocabulary is [`web/src/components/motion.ts`](web/src/components/motion.ts): entrances
+and feedback of 150-300 ms, transforms and opacity only. `MotionConfig reducedMotion="user"` wraps
+the page, and every bundle built for a reader who asked for less motion animates nothing and takes
+no time, which `motion.test.ts` holds it to.
+
 Before you merge a change to `web/`, run the manual acceptance steps in
 [`web/TESTING.md`](web/TESTING.md) on your own computer.
 
