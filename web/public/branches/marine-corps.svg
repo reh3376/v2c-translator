@@ -15,25 +15,25 @@
     </linearGradient>
   </defs>
 
-  <rect width="480" height="200" fill="url(#usmc-sky)" />
-  <circle cx="92" cy="104" r="24" fill="#f0e2b2" opacity="0.8" />
-  <rect y="182" width="480" height="18" fill="#e5efea" opacity="0.5" />
+  <rect data-plane="sky" width="480" height="200" fill="url(#usmc-sky)" />
+  <circle data-plane="sky" cx="92" cy="104" r="24" fill="#f0e2b2" opacity="0.8" />
+  <rect data-plane="sky" y="182" width="480" height="18" fill="#e5efea" opacity="0.5" />
 
-  <rect y="200" width="480" height="92" fill="url(#usmc-sea)" />
-  <path d="M0 228c92-10 150 8 240 0s152-10 240-2v70H0Z" fill="#1d525b" />
+  <rect data-plane="sky" y="200" width="480" height="92" fill="url(#usmc-sea)" />
+  <path data-plane="sky" d="M0 228c92-10 150 8 240 0s152-10 240-2v70H0Z" fill="#1d525b" />
 
-  <g fill="#132f37">
+  <g data-plane="mid" fill="#132f37">
     <path d="M150 220h184l-8 36H166Z" />
     <path d="M288 192h40v28h-40Z" />
     <path d="M298 180h18v12h-18Z" />
     <path d="M306 152h3v28h-3Z" />
     <path d="M176 204h5v16h-5M204 204h5v16h-5M232 204h5v16h-5Z" />
   </g>
-  <path d="M150 220v34l-54 20-4-18Z" fill="#20454e" />
-  <path d="M92 272h62v5H92Z" fill="#0f2730" opacity="0.3" />
+  <path data-plane="mid" d="M150 220v34l-54 20-4-18Z" fill="#20454e" />
+  <path data-plane="mid" d="M92 272h62v5H92Z" fill="#0f2730" opacity="0.3" />
 
-  <path d="M0 274c122-18 300-10 480-24v70H0Z" fill="url(#usmc-sand)" />
-  <path d="M0 274c122-18 300-10 480-24v10c-180 16-358 8-480 24Z" fill="#a89067" opacity="0.45" />
-  <path d="M0 268c120-18 298-10 478-24l-4 10C294 270 118 262 0 278Z" fill="#f1f7f0" opacity="0.8" />
-  <path d="M0 298c120-14 282-8 480-18" stroke="#9c8558" stroke-width="2" fill="none" opacity="0.35" />
+  <path data-plane="fore" d="M0 274c122-18 300-10 480-24v70H0Z" fill="url(#usmc-sand)" />
+  <path data-plane="fore" d="M0 274c122-18 300-10 480-24v10c-180 16-358 8-480 24Z" fill="#a89067" opacity="0.45" />
+  <path data-plane="fore" d="M0 268c120-18 298-10 478-24l-4 10C294 270 118 262 0 278Z" fill="#f1f7f0" opacity="0.8" />
+  <path data-plane="fore" d="M0 298c120-14 282-8 480-18" stroke="#9c8558" stroke-width="2" fill="none" opacity="0.35" />
 </svg>

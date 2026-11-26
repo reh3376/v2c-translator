@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <g data-actor="puff-c" fill="#8f9794">
+    <circle cx="101" cy="128" r="13" opacity="0.7" />
+    <circle cx="88" cy="136" r="8.5" opacity="0.55" />
+    <circle cx="114" cy="136" r="7" opacity="0.5" />
+  </g>
+</svg>

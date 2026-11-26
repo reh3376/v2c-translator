@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="usmc-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#314245" />
+      <stop offset="0.68" stop-color="#3f4947" />
+      <stop offset="1" stop-color="#4d4739" />
+    </linearGradient>
+    <linearGradient id="usmc-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#002e33" />
+      <stop offset="1" stop-color="#002329" />
+    </linearGradient>
+    <linearGradient id="usmc-sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#493e21" />
+      <stop offset="1" stop-color="#433311" />
+    </linearGradient>
+  </defs>
+  <g data-plane="mid" fill="#03161b">
+    <path d="M150 220h184l-8 36H166Z" />
+    <path d="M288 192h40v28h-40Z" />
+    <path d="M298 180h18v12h-18Z" />
+    <path d="M306 152h3v28h-3Z" />
+    <path d="M176 204h5v16h-5M204 204h5v16h-5M232 204h5v16h-5Z" />
+  </g>
+  <path data-plane="mid" d="M150 220v34l-54 20-4-18Z" fill="#021c23" />
+  <path data-plane="mid" d="M92 272h62v5H92Z" fill="#031319" opacity="0.3" />
+</svg>

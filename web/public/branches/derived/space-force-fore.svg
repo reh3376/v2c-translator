@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="sf-space" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a1f29" />
+      <stop offset="1" stop-color="#17404b" />
+    </linearGradient>
+    <linearGradient id="sf-earth" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d737e" />
+      <stop offset="1" stop-color="#103840" />
+    </linearGradient>
+  </defs>
+  <g data-plane="fore">
+    <rect x="296" y="106" width="36" height="13" rx="2" fill="#4c8491" />
+    <rect x="296" y="106" width="36" height="13" rx="2" fill="none" stroke="#a6cdd3" stroke-width="1.5" />
+    <path d="M308 106v13M320 106v13" stroke="#a6cdd3" stroke-width="1" />
+    <rect x="368" y="106" width="36" height="13" rx="2" fill="#4c8491" />
+    <rect x="368" y="106" width="36" height="13" rx="2" fill="none" stroke="#a6cdd3" stroke-width="1.5" />
+    <path d="M380 106v13M392 106v13" stroke="#a6cdd3" stroke-width="1" />
+    <rect x="336" y="102" width="28" height="21" rx="3" fill="#dde8e6" />
+    <path d="M350 102v-9" stroke="#dde8e6" stroke-width="2" />
+    <circle cx="350" cy="88" r="6.5" fill="#eff5f3" />
+    <path d="M336 123l-14 14" stroke="#9fb9bd" stroke-width="1.5" />
+  </g>
+</svg>

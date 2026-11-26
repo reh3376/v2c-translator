@@ -1,8 +1,10 @@
 /**
- * Writes the dark-theme branch pictures from the light ones.
+ * Writes every derived branch picture from the six hand-drawn light ones.
  *
- * The six illustrations are flat colour. A dark variant is therefore not a redraw but one
- * transform applied to every colour in the file: move each through OKLCH, pull its lightness
+ * Two derivations, and this file is the only place either happens.
+ *
+ * **After dark.** The six illustrations are flat colour, so a dark variant is not a redraw but
+ * one transform applied to every colour in the file: move each through OKLCH, pull its lightness
  * into the night band, take some of the chroma out, and leave its hue alone. The transform is
  * monotonic in lightness, so every shape keeps the same order of light and dark it had by day,
  * and nothing in the drawing changes: no outline moves, and no seal, emblem or logo can appear
@@ -11,16 +13,23 @@
  * Space Force is already a night scene, so it is barely touched. That is the only piece of art
  * direction here, and it lives in STRENGTH below.
  *
+ * **In planes.** Every top-level shape in a light picture carries `data-plane="sky"`, `"mid"` or
+ * `"fore"`, which says how far away it is. One file per plane is cut from the drawing, each
+ * keeping the whole `viewBox` so the three stack back into the original picture exactly. The band
+ * then moves them at slightly different rates as the page scrolls, which is what reads as depth.
+ * Cutting the planes here rather than drawing them separately is why they cannot drift apart: the
+ * source of truth is one drawing, and `--check` fails if a plane file is not what it cuts to.
+ *
  * Usage, from `web/`:
  *
- *   node scripts/dark-art.mjs           # write web/public/branches/*-dark.svg
+ *   node scripts/dark-art.mjs           # write web/public/branches/*-dark.svg and *-<plane>.svg
  *   node scripts/dark-art.mjs --check   # fail if the committed files are out of date
  *
  * `src/content/branch-art.test.ts` runs the same check, so a light picture that changes without
- * its dark twin fails the test suite.
+ * its derived files fails the test suite.
  */
 
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,11 +41,20 @@ const NIGHT_SPAN = 0.33;
 const CHROMA_SCALE = 0.78;
 const CHROMA_CEILING = 0.085;
 
-/** How much of the transform each picture gets. 1 is full night. */
-const STRENGTH = { "space-force": 0.3 };
+/**
+ * How much of the transform each drawing gets. 1 is full night, and anything less is art
+ * direction. There are two pieces of it, and this is both of them:
+ *
+ *   - Space Force is already a night scene, so it is barely touched.
+ *   - The Navy salute is white smoke against the sky, and the two meet in the night band at full
+ *     strength: the puffs come out the same lightness as the sky behind them and disappear. Half
+ *     the transform keeps them white enough to see.
+ */
+const STRENGTH = { "space-force": 0.3, "navy-act": 0.5 };
 const FULL_STRENGTH = 1;
 
-export const strengthFor = (name) => STRENGTH[name] ?? FULL_STRENGTH;
+/** An act drawing falls back to its scene's strength, so the two stay in the same night. */
+export const strengthFor = (name) => STRENGTH[name] ?? STRENGTH[name.replace(/-act$/, "")] ?? FULL_STRENGTH;
 
 const clamp01 = (value) => Math.min(1, Math.max(0, value));
 
@@ -100,45 +118,224 @@ export function darkenSvg(svg, strength) {
 
 export const darkName = (file) => file.replace(/\.svg$/, "-dark.svg");
 
-const here = dirname(fileURLToPath(import.meta.url));
-export const BRANCH_DIR = join(here, "..", "public", "branches");
+/* Cutting a drawing into layers
+   ----------------------------- */
 
-/** The light pictures, by file name, in a stable order. */
-export async function lightPictures() {
-  const files = await readdir(BRANCH_DIR);
-  return files.filter((file) => file.endsWith(".svg") && !file.endsWith("-dark.svg")).sort();
+/** How far away a shape in a scene is. Painted back to front, and the band moves them apart. */
+export const PLANES = ["sky", "mid", "fore"];
+
+/**
+ * The `<svg>` open tag, its top-level children in source order, and nothing else.
+ *
+ * Deliberately small: it understands the handful of constructs these drawings use, and throws on
+ * anything it does not, because a layer this cannot read is a layer that would silently go
+ * missing from the page.
+ */
+export function topLevel(svg) {
+  const opened = /<svg\b[^>]*>/.exec(svg);
+  if (!opened) throw new Error("no <svg> element");
+  const open = opened[0];
+  const end = svg.lastIndexOf("</svg>");
+  if (end < 0) throw new Error("no </svg>");
+
+  const inner = svg.slice(open.length + opened.index, end);
+  const children = [];
+  let at = 0;
+
+  while (at < inner.length) {
+    const next = inner.indexOf("<", at);
+    if (next < 0) break;
+    if (inner.startsWith("<!--", next)) {
+      const close = inner.indexOf("-->", next);
+      if (close < 0) throw new Error("unterminated comment");
+      at = close + 3;
+      continue;
+    }
+    if (inner[next + 1] === "/") throw new Error("a closing tag with nothing open");
+
+    let depth = 0;
+    let scan = next;
+    for (;;) {
+      if (inner.startsWith("<!--", scan)) {
+        const close = inner.indexOf("-->", scan);
+        if (close < 0) throw new Error("unterminated comment");
+        scan = close + 3;
+      } else {
+        const tag = readTag(inner, scan);
+        if (tag.closing) depth -= 1;
+        else if (!tag.selfClosing) depth += 1;
+        scan = tag.after;
+      }
+      if (depth <= 0) break;
+      const following = inner.indexOf("<", scan);
+      if (following < 0) throw new Error("unterminated element");
+      scan = following;
+    }
+
+    children.push(inner.slice(next, scan));
+    at = scan;
+  }
+
+  return { open, children };
 }
 
-/** What each dark file should contain, keyed by its file name. */
-export async function expectedDarkPictures() {
-  const entries = await Promise.all(
-    (await lightPictures()).map(async (file) => {
-      const light = await readFile(join(BRANCH_DIR, file), "utf8");
-      return [darkName(file), darkenSvg(light, strengthFor(file.replace(/\.svg$/, "")))];
-    }),
-  );
-  return new Map(entries);
+/** One tag, from `<` to the matching `>`, with quoted attribute values skipped over. */
+function readTag(text, from) {
+  let at = from + 1;
+  const closing = text[at] === "/";
+  let quote = "";
+  while (at < text.length) {
+    const char = text[at];
+    if (quote) {
+      if (char === quote) quote = "";
+    } else if (char === '"' || char === "'") quote = char;
+    else if (char === ">") {
+      return { closing, selfClosing: text[at - 1] === "/", after: at + 1 };
+    }
+    at += 1;
+  }
+  throw new Error("unterminated tag");
+}
+
+const tagName = (chunk) => /^<\s*([a-z][a-z0-9-]*)/i.exec(chunk)?.[1] ?? "";
+
+/** The value of `data-plane` or `data-actor` on a top-level shape, or null. */
+export function layerOf(chunk, attribute) {
+  return new RegExp(`\\s${attribute}="([a-z0-9-]+)"`).exec(chunk)?.[1] ?? null;
+}
+
+/** A plane file and an actor file are fragments, so they carry no description of their own. */
+const asFragment = (open) => open.replace(/\s(?:role|aria-label)="[^"]*"/g, "");
+
+/**
+ * One layer of a drawing: the whole `viewBox`, the whole `<defs>`, and only the shapes labelled
+ * with this layer's name. The layers of a drawing therefore stack back into it exactly.
+ *
+ * Throws when a shape carries no label, so a shape added to a drawing cannot quietly fail to
+ * appear on the page.
+ */
+export function layerSvg(svg, attribute, layer) {
+  const { open, children } = topLevel(svg);
+  const kept = [];
+  for (const chunk of children) {
+    if (tagName(chunk) === "defs") {
+      kept.push(chunk);
+      continue;
+    }
+    const named = layerOf(chunk, attribute);
+    if (named === null) throw new Error(`a top-level <${tagName(chunk)}> carries no ${attribute}`);
+    if (named === layer) kept.push(chunk);
+  }
+  if (kept.every((chunk) => tagName(chunk) === "defs")) throw new Error(`nothing is in the ${layer} layer`);
+  return `${asFragment(open)}\n${kept.map((chunk) => `  ${chunk}`).join("\n")}\n</svg>\n`;
+}
+
+/** Every layer name used in a drawing, in the order the shapes are painted. */
+export function layersOf(svg, attribute) {
+  const { children } = topLevel(svg);
+  const names = [];
+  for (const chunk of children) {
+    if (tagName(chunk) === "defs") continue;
+    const named = layerOf(chunk, attribute);
+    if (named === null) throw new Error(`a top-level <${tagName(chunk)}> carries no ${attribute}`);
+    if (!names.includes(named)) names.push(named);
+  }
+  return names;
+}
+
+/* The files
+   --------- */
+
+const here = dirname(fileURLToPath(import.meta.url));
+/** The drawings, by hand. Two per branch: the resting scene, and the actors its vignette moves. */
+export const BRANCH_DIR = join(here, "..", "public", "branches");
+/** Everything this script writes. Nothing in here is edited by hand. */
+export const DERIVED_DIR = join(BRANCH_DIR, "derived");
+
+const ACT = /-act\.svg$/;
+
+/** The scene drawings, by file name, in a stable order. One per branch. */
+export async function lightPictures() {
+  const files = await readdir(BRANCH_DIR);
+  return files.filter((file) => file.endsWith(".svg") && !ACT.test(file)).sort();
+}
+
+/** The actor drawings, by file name, in a stable order. One per branch. */
+export async function actPictures() {
+  const files = await readdir(BRANCH_DIR);
+  return files.filter((file) => ACT.test(file)).sort();
+}
+
+/**
+ * Every file under `derived/`, keyed by name: for each scene, its dark twin and its three planes
+ * in both themes; for each actor drawing, one file per actor in both themes.
+ */
+export async function expectedArt() {
+  const art = new Map();
+  const add = (file, contents) => art.set(file, contents);
+
+  for (const file of await lightPictures()) {
+    const name = file.replace(/\.svg$/, "");
+    const strength = strengthFor(name);
+    const light = await readFile(join(BRANCH_DIR, file), "utf8");
+
+    add(darkName(file), darkenSvg(light, strength));
+    for (const plane of PLANES) {
+      const cut = layerSvg(light, "data-plane", plane);
+      add(`${name}-${plane}.svg`, cut);
+      add(darkName(`${name}-${plane}.svg`), darkenSvg(cut, strength));
+    }
+  }
+
+  for (const file of await actPictures()) {
+    const name = file.replace(/\.svg$/, "");
+    const strength = strengthFor(name);
+    const light = await readFile(join(BRANCH_DIR, file), "utf8");
+
+    for (const actor of layersOf(light, "data-actor")) {
+      const cut = layerSvg(light, "data-actor", actor);
+      add(`${name}-${actor}.svg`, cut);
+      add(darkName(`${name}-${actor}.svg`), darkenSvg(cut, strength));
+    }
+  }
+
+  return art;
+}
+
+/** Files under `derived/` that nothing derives any more. A renamed drawing leaves these behind. */
+export async function orphans(expected) {
+  const files = await readdir(DERIVED_DIR).catch(() => []);
+  return files.filter((file) => !expected.has(file)).sort();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const expected = await expectedDarkPictures();
+  const expected = await expectedArt();
   const checking = process.argv.includes("--check");
   const stale = [];
 
+  await mkdir(DERIVED_DIR, { recursive: true });
   for (const [file, contents] of expected) {
-    const path = join(BRANCH_DIR, file);
+    const path = join(DERIVED_DIR, file);
     if (checking) {
       const onDisk = await readFile(path, "utf8").catch(() => "");
       if (onDisk !== contents) stale.push(file);
     } else {
       await writeFile(path, contents);
-      console.log(`wrote ${path}`);
     }
   }
 
-  if (stale.length > 0) {
-    console.error(`out of date: ${stale.join(", ")}. Run: node scripts/dark-art.mjs`);
+  const left = await orphans(expected);
+  if (!checking) {
+    for (const file of left) await rm(join(DERIVED_DIR, file));
+    console.log(`wrote ${expected.size} files to ${DERIVED_DIR}`);
+    if (left.length > 0) console.log(`removed ${left.length} no longer derived`);
+  }
+
+  if (stale.length > 0) console.error(`out of date: ${stale.join(", ")}`);
+  if (left.length > 0 && checking) console.error(`no longer derived: ${left.join(", ")}`);
+  if (checking && (stale.length > 0 || left.length > 0)) {
+    console.error("Run: node scripts/dark-art.mjs");
     process.exit(1);
   }
-  if (checking) console.log(`${expected.size} dark pictures are up to date`);
+  if (checking) console.log(`${expected.size} derived pictures are up to date`);
 }

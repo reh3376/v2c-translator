@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="navy-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#334345" />
+      <stop offset="0.65" stop-color="#404947" />
+      <stop offset="1" stop-color="#4c473a" />
+    </linearGradient>
+    <linearGradient id="navy-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#002f35" />
+      <stop offset="1" stop-color="#001d23" />
+    </linearGradient>
+  </defs>
+  <rect data-plane="sky" width="480" height="200" fill="url(#navy-sky)" />
+  <circle data-plane="sky" cx="366" cy="170" r="27" fill="#4e4424" opacity="0.9" />
+  <rect data-plane="sky" y="178" width="480" height="22" fill="#424a48" opacity="0.55" />
+  <rect data-plane="sky" y="200" width="480" height="120" fill="url(#navy-sea)" />
+  <g data-plane="sky" fill="#1d4041" opacity="0.5">
+    <rect x="352" y="206" width="30" height="3" rx="1.5" />
+    <rect x="344" y="215" width="46" height="3" rx="1.5" />
+    <rect x="334" y="226" width="66" height="3" rx="1.5" />
+    <rect x="322" y="240" width="90" height="4" rx="2" />
+  </g>
+</svg>

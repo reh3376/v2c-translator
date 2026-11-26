@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="army-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b8d1d3" />
+      <stop offset="0.7" stop-color="#dfeae3" />
+      <stop offset="1" stop-color="#f1ead6" />
+    </linearGradient>
+    <linearGradient id="army-near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b6d62" />
+      <stop offset="1" stop-color="#2b4844" />
+    </linearGradient>
+  </defs>
+  <rect data-plane="sky" width="480" height="214" fill="url(#army-sky)" />
+  <circle data-plane="sky" cx="86" cy="70" r="23" fill="#f0e3bb" opacity="0.8" />
+  <path data-plane="sky" d="M0 160l72-30 58 22 70-38 80 34 60-24 78 30 62-20v48H0Z" fill="#9cbab3" opacity="0.8" />
+  <path data-plane="sky" d="M0 206l84-34 86 28 80-34 82 32 70-24 78 28v24H0Z" fill="#6d9089" />
+</svg>

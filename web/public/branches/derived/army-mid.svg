@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320">
+  <defs>
+    <linearGradient id="army-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b8d1d3" />
+      <stop offset="0.7" stop-color="#dfeae3" />
+      <stop offset="1" stop-color="#f1ead6" />
+    </linearGradient>
+    <linearGradient id="army-near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b6d62" />
+      <stop offset="1" stop-color="#2b4844" />
+    </linearGradient>
+  </defs>
+  <path data-plane="mid" d="M0 228l96-18 92 12 96-16 92 14 104-10v110H0Z" fill="url(#army-near)" />
+  <path data-plane="mid" d="M60 320c62-40 130-58 196-82l44-16 8 14-46 17c-64 23-130 42-186 67Z" fill="#cfbf96" opacity="0.55" />
+  <g data-plane="mid" fill="#15292a">
+    <path d="M214 250h74v18h-74Z" />
+    <path d="M238 232h34l8 18h-42Z" />
+    <path d="M244 236h22v12h-22Z" fill="#43605c" />
+    <circle cx="230" cy="270" r="7" />
+    <circle cx="274" cy="270" r="7" />
+  </g>
+  <g data-plane="mid" fill="#0f1f20" opacity="0.25">
+    <ellipse cx="252" cy="278" rx="46" ry="4" />
+  </g>
+</svg>

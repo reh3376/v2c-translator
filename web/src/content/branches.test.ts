@@ -60,7 +60,7 @@ describe("the branch pictures", () => {
 
   it("are found by the branch name a report carries, and only by that", () => {
     expect(panelFor("Army")?.illustration).toBe("/branches/army.svg");
-    expect(panelFor("Army")?.illustrationDark).toBe("/branches/army-dark.svg");
+    expect(panelFor("Army")?.illustrationDark).toBe("/branches/derived/army-dark.svg");
     expect(panelFor("army")).toBeUndefined();
     expect(panelFor(null)).toBeUndefined();
     expect(panelFor(undefined)).toBeUndefined();
