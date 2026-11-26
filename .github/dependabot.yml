@@ -10,6 +10,19 @@ updates:
       uv:
         patterns: ["*"]
 
+  # The Dockerfile pins its base images by digest, with the tag in a comment beside each,
+  # which is the form this ecosystem reads and bumps. Without this entry the pins are
+  # frozen and the image stops picking up Debian's security updates.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      docker:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
