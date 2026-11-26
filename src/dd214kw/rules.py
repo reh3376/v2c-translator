@@ -85,8 +85,9 @@ COURSE_RULES: list[tuple[str, list[str]]] = [
         ["Leadership Training", "Team Supervision", "Performance Counseling"],
     ),
     (
-        r"ADVANCED LEADER|\bALC\b|ANCOC|BNCOC|SENIOR LEADER COURSE|\bSLC\b|NCO ACADEMY|"
-        r"SNCO ACADEMY|SERGEANTS COURSE|CHIEF PETTY OFFICER|MASTER LEADER|SERGEANTS MAJOR|"
+        r"ADVANCED LEADER|\bALC\b|ANCOC|BNCOC|SENIOR LEADER COURSE|\bSLC\b|"
+        r"(?:NCO|NONCOMMISSIONED OFFICER) ACADEMY|SNCO ACADEMY|NONCOMMISSIONED OFFICER COURSE|"
+        r"SERGEANTS COURSE|CHIEF PETTY OFFICER|MASTER LEADER|SERGEANTS MAJOR|"
         r"CAREER COURSE|STAFF COLLEGE|COMMAND AND GENERAL|WAR COLLEGE",
         ["Advanced Leadership", "Operations Management", "Organizational Planning"],
     ),
@@ -172,7 +173,10 @@ PERFORMANCE_AWARD_RE = re.compile(
 )
 AWARD_RULES: list[tuple[str, list[str]]] = [
     (r"GOOD CONDUCT", ["Dependability"]),
-    (r"NCO PROFESSIONAL DEVELOPMENT|\bNCOPDR\b", ["Professional Development"]),
+    (
+        r"(?:NCO|NONCOMMISSIONED OFFICER) PROFESSIONAL DEVELOPMENT|\bNCOPDR\b",
+        ["Professional Development"],
+    ),
     (
         r"CAMPAIGN|EXPEDITIONARY MEDAL|OVERSEAS SERVICE|INHERENT RESOLVE|KOREA DEFENSE|\bNATO\b|"
         r"KOSOVO",

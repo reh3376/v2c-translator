@@ -2,6 +2,9 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import pytest
+
+from dd214kw.canonical import _names, _snap
 from dd214kw.evidence import OccupationHeld, Source
 from dd214kw.extractors import read
 from dd214kw.parse import (
@@ -49,7 +52,7 @@ def test_navy_2022_layout():
     assert rec.service_time["sea"].years == 5
     assert len(rec.training) == 5
     awards = [(a.value.name, a.value.count) for a in rec.awards]
-    assert ("SEA SERVICE DEPLOYMENT RIBBON", 3) in awards
+    assert ("NAVY SEA SERVICE DEPLOYMENT RIBBON", 3) in awards  # the official name
 
 
 def test_sensitive_blocks_never_captured():
@@ -190,6 +193,16 @@ def test_a_course_too_garbled_to_place_keeps_the_documents_text():
         "AIRBORNE",
         "SOCC J NTRUCTOR T AL NI NG CRS",
     ]
+
+
+@pytest.mark.parametrize("kind", ["awards", "courses"])
+def test_every_official_name_and_abbreviation_reads_as_itself(kind):
+    """The name lists are data, so this is their lint: no name or abbreviation may read as
+    another row's, which would quietly rename one award or course as another."""
+    names = _names(kind)
+    assert len(names) == len({letters for letters, _ in names})
+    for letters, official in names:
+        assert _snap(letters, kind) == official
 
 
 def test_courses_units():

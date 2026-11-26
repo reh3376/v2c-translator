@@ -15,6 +15,7 @@ from collections.abc import Iterable
 
 from rapidfuzz import fuzz
 
+from .canonical import canonical_course
 from .models import Course, Duration, Specialty
 
 # (segment key, label regex). Order doesn't matter; segments are sorted by position.
@@ -357,7 +358,7 @@ def parse_courses(seg: str | None) -> list[Course]:
             " ",
             u,
         )
-        title = re.sub(r"\s+", " ", title).strip(" ,.-()/")
+        title = canonical_course(re.sub(r"\s+", " ", title).strip(" ,.-()/"))
         if len(title) >= 3:
             courses.append(
                 Course(raw=part, title=title, weeks=weeks, year=int(years[-1]) if years else None)
