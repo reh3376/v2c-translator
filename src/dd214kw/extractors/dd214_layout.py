@@ -178,10 +178,42 @@ ENTERED, SEPARATED, NET_ACTIVE = "a", "b", "c"
 # height before what is being measured is taken to be something other than its rows.
 PITCH_OF_BAND = (0.6, 1.6)
 RECORD_DAYS_SLACK = 3
-OCR_DIGITS = str.maketrans("OoIl|", "00111")
-# One line of digits and nothing else, for a cell read again from the page image.
-CELL_OCR = "--psm 7 -c tessedit_char_whitelist=" + "".join(map(str, range(10)))
+# What OCR writes for a digit in a cell that holds nothing else: a zero read as a letter or
+# a bracket, a one read as a stroke. "N" stands for a zero only in a two-digit cell, where
+# the form prints "00" and OCR runs the pair together as "NO".
+OCR_DIGITS = str.maketrans("OoQDIl|", "0000111")
+ZERO_BRACKETS_RE = re.compile(r"\(\s*\)")
+CELL_DIGIT_WHITELIST = "-c tessedit_char_whitelist=" + "".join(map(str, range(10)))
 CELL_PAD = 1.0  # margin around a cell's box when it is cut out of the page image
+DARK = 140  # grey below this is ink, when a crop is read in black and white
+
+
+@dataclass(frozen=True, slots=True)
+class Try:
+    """How a cell is cut out of the page image and read: the margin around its box, how far
+    the crop is magnified, the page-segmentation mode tesseract reads it in, and whether the
+    crop is made black and white first."""
+
+    pad: float
+    zoom: float
+    psm: int
+    black_and_white: bool
+
+
+# What a cell is read at, in order, until a reading is the digits the cell holds. Measured
+# on the 27 cells of a scanned fictional form: sparse-text mode (11) read every one of
+# them, single-line mode (7) 14, and magnifying the crop first helped only where it was
+# made black and white too. The second and third try give a cell the first one misses a
+# wider margin, in case its box sits a little off the page's own, and a second reader.
+REREAD_TRIES = (
+    Try(CELL_PAD, 1.0, 11, False),
+    Try(3 * CELL_PAD, 1.0, 11, True),
+    Try(3 * CELL_PAD, 2.0, 7, True),
+)
+OCR_TOOLS_MISSING = (
+    "Some block 12 values were unreadable in the PDF's text layer; installing the OCR tools "
+    "(see README) lets them be re-read from the scan."
+)
 RULE_RE = re.compile(r"[|\[\]_!\u2013\u2014]+")  # a ruled line read as text
 SPLIT_SEPARATOR_RE = re.compile(r"/\s+/")  # OCR's "/ /" for the "//" between entries
 
@@ -209,6 +241,18 @@ class Region:
 
 
 @dataclass(frozen=True, slots=True)
+class Reread:
+    """What came back when a cell was cut out of the page image and read again. The reading
+    itself is not kept, only its shape, so a layout report can show why a cell failed
+    without showing a character of what it holds."""
+
+    crop: Box  # the box cut out, in the image's own pixels
+    zoom: float  # how much it was magnified before being read
+    shape: str  # the kind and length of what came back ("D2"), or "none"
+    accepted: bool  # whether it read as the digits the cell holds
+
+
+@dataclass(frozen=True, slots=True)
 class Cell:
     """One cell of block 12's grid: a row's YEAR(S), MONTH(S) or DAY(S)."""
 
@@ -218,6 +262,7 @@ class Cell:
     box: Box | None = None
     words: tuple[Word, ...] = ()
     value: str = ""  # its digits, once the whole row reads as a date or a length of service
+    reread: Reread | None = None  # set when the cell was read again from the page image
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +282,24 @@ class Form:
     text: str | None
     notes: tuple[str, ...] = ()
     layout: Layout | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _Page:
+    """The page image a cell can be read again from, when there is one. `missing_tools`
+    says the page is a scan but the OCR tools that would read it are not installed."""
+
+    scan: Scan | None = None
+    missing_tools: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _Read:
+    """One cell as it was read: its digits, or None when no reading of it was digits."""
+
+    digits: str | None
+    reread: Reread | None = None
+    missing_tools: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -525,6 +588,20 @@ def _squash_text(text: str) -> str:
     return re.sub(r"[^0-9A-Z]", "", text.upper())
 
 
+def shape(text: str) -> str:
+    """A text's shape code: its kind of characters and its length, never a character. What
+    a layout report may show of a word or of a reading, and all it may show."""
+    if all(c.isdigit() for c in text):
+        kind = "D"
+    elif all(c.isalpha() for c in text):
+        kind = "A"
+    elif not any(c.isalnum() for c in text):
+        kind = "P"
+    else:
+        kind = "M"
+    return f"{kind}{len(text)}"
+
+
 # --------------------------------------------------------------------------- geometry
 
 
@@ -642,35 +719,47 @@ def _record(
 
     cells: list[Cell] = []
     notes: list[str] = []
+    missing_tools = False
     for i, row in enumerate(rows):
         name = f"block {block}{row.letter} ({row.label.lower()})"
         words = {column: placed[column].get(i, ()) for column in columns}
-        if not all(words.values()):
+        band = _band(words.values())
+        if band is None:
             notes.append(f"No value was found in {name}; not read.")
             cells += [Cell(row.letter, column, Status.NOT_FOUND) for column in COLUMNS]
             continue
-        boxes = {
-            column: (
-                columns[column][0],
-                min(w.top for w in ws),
-                columns[column][1],
-                max(w.bottom for w in ws),
-            )
-            for column, ws in words.items()
-        }
-        digits = [
+        # Every cell of a row is boxed from the row's own band, not from its own words, so
+        # a cell the text layer left empty still has the box the page image is cut at.
+        top, bottom = band
+        boxes = {name: (x0, top, x1, bottom) for name, (x0, x1) in columns.items()}
+        reads = [
             _cell_digits(_cell(words[column]), width, boxes[column], page_scan)
             for column, width in zip(COLUMNS, CELL_DIGITS, strict=True)
         ]
-        if _row_value(digits, row.is_date) is None:
+        missing_tools = missing_tools or any(read.missing_tools for read in reads)
+        attempts = {c: read.reread for c, read in zip(COLUMNS, reads, strict=True)}
+        if _row_value([read.digits for read in reads], row.is_date) is None:
             notes.append(f"The value of {name} could not be read; not used.")
-            cells += [Cell(row.letter, c, Status.REFUSED, boxes[c], words[c]) for c in COLUMNS]
+            cells += [
+                Cell(row.letter, c, Status.REFUSED, boxes[c], words[c], reread=attempts[c])
+                for c in COLUMNS
+            ]
             continue
         cells += [
-            Cell(row.letter, c, Status.READ, boxes[c], words[c], d)
-            for c, d in zip(COLUMNS, digits, strict=True)
+            Cell(row.letter, c, Status.READ, boxes[c], words[c], read.digits or "", attempts[c])
+            for c, read in zip(COLUMNS, reads, strict=True)
         ]
+    if missing_tools:
+        notes.append(OCR_TOOLS_MISSING)
     return cells, notes + _record_check(edition, cells)
+
+
+def _band(cells: Iterable[tuple[Word, ...]]) -> tuple[float, float] | None:
+    """How far down the page one row of block 12 runs, from the cells of it that were read;
+    None when the row holds no word at all. The row's cells sit on one line, so a cell the
+    text layer left empty belongs in the same band as the cells beside it."""
+    words = [w for cell in cells for w in cell]
+    return (min(w.top for w in words), max(w.bottom for w in words)) if words else None
 
 
 def _place(
@@ -841,57 +930,84 @@ def _cell(words: Iterable[Word]) -> str:
     return "".join(w.text for w in words)
 
 
-def _digits(cell: str) -> str:
-    """A numeric cell with OCR's usual confusions undone: O/o for 0, l/I/| for 1, S for 5
-    when every other character is a digit, and stray punctuation dropped."""
-    s = re.sub(r"[^0-9A-Za-z|]", "", cell).translate(OCR_DIGITS)
+def _digits(cell: str, width: int) -> str:
+    """A numeric cell with OCR's usual confusions undone: O/o/Q/D for 0, l/I/| for 1, "()"
+    for 0, N for 0 in a two-digit cell, S for 5 when every other character is a digit, and
+    stray punctuation dropped. A cell of this block holds digits and nothing else, so a
+    letter in one is a digit misread."""
+    s = ZERO_BRACKETS_RE.sub("0", cell)
+    s = re.sub(r"[^0-9A-Za-z|]", "", s).translate(OCR_DIGITS)
+    if width == 2:  # the form prints "00", which OCR runs together as "NO" or "N0"
+        s = s.replace("N", "0").replace("n", "0")
     if s.replace("S", "").isdigit():
         s = s.replace("S", "5")
     return s
 
 
-def _cell_digits(
-    text: str, width: int, box: Box, page_scan: Callable[[], Scan | None]
-) -> str | None:
-    """A cell's `width` digits, or None. A cell the text layer did not leave as digits is
-    cut out of the page image and read again, and kept only if that reading is digits."""
+def _cell_digits(text: str, width: int, box: Box, page_scan: Callable[[], _Page]) -> _Read:
+    """A cell's `width` digits, or None, and what came of reading it again from the page.
+
+    A cell the text layer did not leave as digits is cut out of the page image and read
+    again, at each margin and magnification in REREAD_TRIES until one reads as digits.
+    """
     if (digits := _of_width(text, width)) is not None:
-        return digits
-    return _of_width(_reread(page_scan(), box), width)
+        return _Read(digits)
+    found = page_scan()
+    if found.scan is None:
+        return _Read(None, missing_tools=found.missing_tools)
+    attempt = None
+    for how in REREAD_TRIES:
+        read = _reread(found.scan, box, how)
+        if read is None:
+            return _Read(None, attempt, missing_tools=True)
+        crop, text = read
+        digits = _of_width(text, width)
+        attempt = Reread(crop, how.zoom, shape(text) if text else "none", digits is not None)
+        if digits is not None:
+            return _Read(digits, attempt)
+    return _Read(None, attempt)
 
 
 def _of_width(text: str, width: int) -> str | None:
-    digits = _digits(text)
+    digits = _digits(text, width)
     return digits if digits.isdigit() and len(digits) == width else None
 
 
-def _reread(scan: Scan | None, box: Box) -> str:
-    """One cell's box, cut out of the page image and read again as digits and nothing else.
-    Empty when the page is not a scan, or the `ocr` extra or tesseract is not installed."""
-    if scan is None:
-        return ""
+def _reread(scan: Scan, box: Box, how: Try) -> tuple[Box, str] | None:
+    """One cell's box, cut out of the page image as `how` says and read again as digits and
+    nothing else, with the box it was cut at in the image's own pixels. None when the `ocr`
+    extra or the tesseract binary is not installed."""
     try:
         import pytesseract
+        from PIL import Image
     except ImportError:  # pragma: no cover - optional dependency
-        return ""
-    pads = (-CELL_PAD, -CELL_PAD, CELL_PAD, CELL_PAD)
-    x0, top, x1, bottom = ((v + pad) * scan.scale for v, pad in zip(box, pads, strict=True))
-    crop = scan.image.crop((int(x0), int(top), int(x1), int(bottom)))
-    try:
-        return pytesseract.image_to_string(crop, config=CELL_OCR).strip()
-    except (OSError, RuntimeError):  # pragma: no cover - tesseract missing or failing
-        return ""
-
-
-def _scan_page(scan: ScanPages | None, page: int) -> Scan | None:
-    """Page `page` of the scan behind the file, rendered on the first call."""
-    if scan is None:
         return None
+    pads = (-how.pad, -how.pad, how.pad, how.pad)
+    crop = tuple(float(int((v + p) * scan.scale)) for v, p in zip(box, pads, strict=True))
+    image = scan.image.crop(tuple(int(v) for v in crop))
+    if how.black_and_white:
+        image = image.convert("L").point(lambda grey: 0 if grey < DARK else 255)
+    if how.zoom != 1.0:
+        size = (max(1, int(image.width * how.zoom)), max(1, int(image.height * how.zoom)))
+        image = image.resize(size, Image.Resampling.LANCZOS)
+    try:
+        config = f"--psm {how.psm} {CELL_DIGIT_WHITELIST}"
+        return crop, pytesseract.image_to_string(image, config=config).strip()
+    except (OSError, RuntimeError):  # pragma: no cover - tesseract missing or failing
+        return None
+
+
+def _scan_page(scan: ScanPages | None, page: int) -> _Page:
+    """Page `page` of the scan behind the file, rendered on the first call. A page that is
+    not a scan has no image to read again; a page that is one has none here when the `ocr`
+    extra is not installed, which installing it would fix."""
+    if scan is None:
+        return _Page()
     try:
         pages = scan()
     except ExtractionError:  # pragma: no cover - the 'ocr' extra is not installed
-        return None
-    return pages[page] if page < len(pages) else None
+        return _Page(missing_tools=True)
+    return _Page(pages[page]) if page < len(pages) else _Page()
 
 
 def _row_value(digits: Sequence[str | None], is_date: bool) -> str | None:

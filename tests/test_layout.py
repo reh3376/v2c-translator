@@ -189,12 +189,12 @@ def test_zero_look_alikes_in_a_block_12_cell_read_as_zeros(tmp_path):
     pdf = form.write_text_pdf(
         tmp_path / "dd214.pdf",
         cells={
-            ("d", 0): "()()()()",
+            ("d", 0): "0O0D",
             ("d", 1): "NO",
             ("d", 2): "QO",
-            ("e", 0): "0OQ0",
-            ("e", 1): "DO",
-            ("e", 2): "O()",
+            ("e", 0): "0Q0O",
+            ("e", 1): "()()",
+            ("e", 2): "D0",
         },
     )
     doc, facts = read(pdf)
