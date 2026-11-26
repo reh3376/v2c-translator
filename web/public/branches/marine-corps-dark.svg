@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" width="480" height="320" role="img" aria-label="A landing craft at the surf line with its bow ramp down on the sand, drawn as a flat silhouette.">
+  <defs>
+    <linearGradient id="usmc-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#314245" />
+      <stop offset="0.68" stop-color="#3f4947" />
+      <stop offset="1" stop-color="#4d4739" />
+    </linearGradient>
+    <linearGradient id="usmc-sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#002e33" />
+      <stop offset="1" stop-color="#002329" />
+    </linearGradient>
+    <linearGradient id="usmc-sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#493e21" />
+      <stop offset="1" stop-color="#433311" />
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="200" fill="url(#usmc-sky)" />
+  <circle cx="92" cy="104" r="24" fill="#4e4525" opacity="0.8" />
+  <rect y="182" width="480" height="18" fill="#434a47" opacity="0.5" />
+
+  <rect y="200" width="480" height="92" fill="url(#usmc-sea)" />
+  <path d="M0 228c92-10 150 8 240 0s152-10 240-2v70H0Z" fill="#002127" />
+
+  <g fill="#03161b">
+    <path d="M150 220h184l-8 36H166Z" />
+    <path d="M288 192h40v28h-40Z" />
+    <path d="M298 180h18v12h-18Z" />
+    <path d="M306 152h3v28h-3Z" />
+    <path d="M176 204h5v16h-5M204 204h5v16h-5M232 204h5v16h-5Z" />
+  </g>
+  <path d="M150 220v34l-54 20-4-18Z" fill="#021c23" />
+  <path d="M92 272h62v5H92Z" fill="#031319" opacity="0.3" />
+
+  <path d="M0 274c122-18 300-10 480-24v70H0Z" fill="url(#usmc-sand)" />
+  <path d="M0 274c122-18 300-10 480-24v10c-180 16-358 8-480 24Z" fill="#3d2d10" opacity="0.45" />
+  <path d="M0 268c120-18 298-10 478-24l-4 10C294 270 118 262 0 278Z" fill="#484c47" opacity="0.8" />
+  <path d="M0 298c120-14 282-8 480-18" stroke="#3a2a08" stroke-width="2" fill="none" opacity="0.35" />
+</svg>

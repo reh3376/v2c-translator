@@ -11,7 +11,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "check-links": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-links.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "dark-art": "node scripts/dark-art.mjs"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
