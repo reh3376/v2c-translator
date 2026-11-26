@@ -13,23 +13,36 @@ either, and a written block whose box cannot be bounded away from one is not rea
 
 from __future__ import annotations
 
+import math
 import re
 import statistics
+from calendar import monthrange
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from enum import StrEnum
-from itertools import combinations, pairwise
+from functools import partial
+from itertools import accumulate, combinations, pairwise
 
 from rapidfuzz import fuzz
 from rapidfuzz.distance import Indel
 
-from ..extract import Word
+from ..extract import ExtractionError, Scan, ScanPages, Word
 from ..parse import MAX_SERVICE_YEARS, detect_version
 
 # Fuzzy-match floor (0-100) for a printed label against a line of OCR'd text.
 LABEL_MATCH = 85
+# How many of a printed label's characters are matched against a line. A label that wraps
+# onto a second line, or whose line runs into the label beside it, is still recognised by
+# the characters it starts with.
+LABEL_PREFIX = 24
+# Fuzzy-match floor for one line of a printed label that wraps. A short piece of a label
+# loses more of its score to the same OCR noise than the whole label does, so this sits
+# below LABEL_MATCH: the piece only has to be text the label holds.
+LABEL_LINE_MATCH = 80
+# Fuzzy-match floor for one of block 12's column headings, which are single words.
+HEADING_MATCH = 75
 # A page with fewer labels found than this is not read by position.
 MIN_LABELS = 5
 NOT_READ = (
@@ -149,7 +162,18 @@ EDITION_2000 = Edition(
 EDITIONS = (EDITION_2000,)
 COLUMNS = ("YEARS", "MONTHS", "DAYS")  # block 12's headings, squashed
 CELL_DIGITS = (4, 2, 2)  # the form prints YEAR(S) as 4 digits, MONTH(S) and DAY(S) as 2
+# Block 12's rows a and b are the dates this period of service ran between, and row c is
+# its length, counted inclusively. Time lost (block 29) is not read here, so a length that
+# does not follow from the dates is reported as a note, not corrected.
+ENTERED, SEPARATED, NET_ACTIVE = "a", "b", "c"
+# How far the step between block 12's rows may stand from one row's share of the block's
+# height before what is being measured is taken to be something other than its rows.
+PITCH_OF_BAND = (0.6, 1.6)
+RECORD_DAYS_SLACK = 3
 OCR_DIGITS = str.maketrans("OoIl|", "00111")
+# One line of digits and nothing else, for a cell read again from the page image.
+CELL_OCR = "--psm 7 -c tessedit_char_whitelist=" + "".join(map(str, range(10)))
+CELL_PAD = 1.0  # margin around a cell's box when it is cut out of the page image
 RULE_RE = re.compile(r"[|\[\]_!\u2013\u2014]+")  # a ruled line read as text
 SPLIT_SEPARATOR_RE = re.compile(r"/\s+/")  # OCR's "/ /" for the "//" between entries
 
@@ -185,6 +209,7 @@ class Cell:
     status: Status
     box: Box | None = None
     words: tuple[Word, ...] = ()
+    value: str = ""  # its digits, once the whole row reads as a date or a length of service
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,8 +246,21 @@ class _Label:
         return min(w.top for w in self.words)
 
 
-def read_form(words: Sequence[Word]) -> Form:
-    """Read the DD-214 page among `words` by position: the page with the most labels found."""
+def read_form(
+    words: Sequence[Word],
+    lines: Sequence[tuple[Word, ...]] = (),
+    scan: ScanPages | None = None,
+) -> Form:
+    """Read the DD-214 page among `words` by position: the page with the most labels found.
+
+    `lines` are the lines the words' source read them in (OCR's own lines); without them the
+    source's order is cut into lines here. A printed label is matched against those lines
+    and never against a regrouping of the words, because on a scan a small label row and the
+    typed row under it overlap: regrouped, their words interleave and no label reads whole.
+
+    `scan` gives the pages as images, so a block 12 cell the text layer garbled can be read
+    again from the image.
+    """
     if not words:
         return Form(None)  # Plain text: no positions to read by.
     if detect_version(_text(words)) not in ("unknown", *(ed.name for ed in EDITIONS)):
@@ -230,8 +268,13 @@ def read_form(words: Sequence[Word]) -> Form:
     pages: dict[int, list[Word]] = {}
     for w in words:
         pages.setdefault(w.page, []).append(w)
+    source = {n: [ln for ln in lines if ln and ln[0].page == n] for n in pages}
     found = max(
-        ((ed, page, *_find_labels(_lines(page), ed)) for page in pages.values() for ed in EDITIONS),
+        (
+            (ed, page, *_find_labels(source[n] or _reading_lines(page), ed))
+            for n, page in pages.items()
+            for ed in EDITIONS
+        ),
         key=lambda f: (len(f[2]) + len(f[3]), sum(lb.score for lb in f[2].values())),
         default=None,
     )
@@ -244,8 +287,9 @@ def read_form(words: Sequence[Word]) -> Form:
         for a, b in combinations(blocks.values(), 2)
     ):
         return Form(None)  # One block per line: line order is already block order.
-    layout, notes = _locate(edition, page, blocks, rows, tol)
-    return Form(_write(edition, layout), tuple(notes), layout)
+    source_lines = source[page[0].page] or _reading_lines(page)
+    layout, notes = _locate(edition, page, blocks, rows, tol, scan)
+    return Form(_write(edition, layout, source_lines), tuple(notes), layout)
 
 
 def _locate(
@@ -254,6 +298,7 @@ def _locate(
     blocks: dict[str, _Label],
     rows: dict[str, _Label],
     tol: float,
+    scan: ScanPages | None = None,
 ) -> tuple[Layout, list[str]]:
     """Box each block the reader writes, and block 12's cells, from the labels found.
 
@@ -267,10 +312,12 @@ def _locate(
     right = max(w.x1 for w in page) + tol
     bottom = max(w.bottom for w in page) + tol
 
-    def box(block: str) -> tuple[Box, set[str], set[str]]:
-        return _box(blocks[block], blocks.values(), rows.values(), right, bottom, tol)
+    def box(label: _Label) -> tuple[Box, set[str], set[str]]:
+        return _box(label, blocks.values(), rows.values(), right, bottom, tol)
 
-    withheld = [Region(b, Status.WITHHELD, box(b)[0]) for b in edition.withheld if b in blocks]
+    withheld = [
+        Region(b, Status.WITHHELD, box(blocks[b])[0]) for b in edition.withheld if b in blocks
+    ]
     page = [w for w in page if not any(_inside(w, r.box) for r in withheld)]
     bounds = dict(edition.bounds)
     regions: list[Region] = []
@@ -278,7 +325,12 @@ def _locate(
     notes: list[str] = []
     for block in edition.written:
         if block == edition.record:
-            cells, row_notes = _record(edition, page, rows, tol)
+            # Block 12's own label, or else its first row label, anchors its grid.
+            anchor = blocks.get(block) or min(rows.values(), key=lambda lb: lb.top, default=None)
+            grid = box(anchor)[0] if anchor else None
+            cells, row_notes = _record(
+                edition, page, anchor, grid, tol, partial(_scan_page, scan, page_no)
+            )
             notes += row_notes
             continue
         name = _name(edition, block).lower()
@@ -286,7 +338,7 @@ def _locate(
             regions.append(Region(block, Status.NOT_FOUND))
             notes.append(f"Block {block} ({name}) was not found on the page; not read.")
             continue
-        b, beside, below = box(block)
+        b, beside, below = box(blocks[block])
         need = bounds.get(block, Bounds())
         sides = {"to the right of": (need.beside, beside), "below": (need.below, below)}
         unbounded = [side for side, (want, got) in sides.items() if want and not got & set(want)]
@@ -297,12 +349,17 @@ def _locate(
                 f"{' or '.join(unbounded)} it, so its box could reach a block with personal data."
             )
             continue
-        regions.append(Region(block, Status.READ, b, tuple(w for w in page if _inside(w, b))))
+        # The label is printed at the top of its block, so a word above it is the block
+        # above's: on a blurry scan one such word reaches into this box's top margin.
+        inside = tuple(w for w in page if _inside(w, b) and _cy(w) >= blocks[block].top)
+        regions.append(Region(block, Status.READ, b, inside))
     return Layout(page_no, (*regions, *withheld), tuple(cells)), notes
 
 
-def _write(edition: Edition, layout: Layout) -> str:
-    """The blocks read, as plain text in the shape `parse.segment()` reads."""
+def _write(edition: Edition, layout: Layout, lines: Sequence[tuple[Word, ...]]) -> str:
+    """The blocks read, as plain text in the shape `parse.segment()` reads. A block's words
+    keep the lines their source read them in, so a printed label and the value typed under
+    it stay apart even where their boxes overlap."""
     out = [edition.title]
     regions = {r.block: r for r in layout.regions}
     for block in edition.written:
@@ -312,10 +369,14 @@ def _write(edition: Edition, layout: Layout) -> str:
             continue
         if regions[block].status is not Status.READ:
             continue
-        lines = _drop_label(_lines(regions[block].words), block + _printed(edition, block))
-        text = [SPLIT_SEPARATOR_RE.sub("//", _text(line)) for line in lines]
-        # With "//" between entries, a line break in the box is only a wrap.
-        out += [f"{block}. {name}", *([" ".join(text)] if any("//" in t for t in text) else text)]
+        in_box = _drop_label(
+            _grouped(lines, regions[block].words), block + _printed(edition, block)
+        )
+        text = [_text(line) for line in in_box]
+        # With "//" between entries, a line break in the box is only a wrap. The "//" may
+        # itself be split, by OCR into "/ /" or by the wrap, so look for it in the joined box.
+        joined = SPLIT_SEPARATOR_RE.sub("//", " ".join(text))
+        out += [f"{block}. {name}", *([joined] if "//" in joined else text)]
     return "\n".join(out)
 
 
@@ -347,13 +408,16 @@ def _find_labels(
 
 
 def _assign(lines: Iterable[tuple[Word, ...]], wanted: list[tuple[str, str]]) -> dict[str, _Label]:
-    """Best match for each (key, text) in `lines`, greedily by score, no word used twice."""
+    """Best match for each (key, text) in `lines`, greedily by score, no word used twice.
+
+    Only a label's first LABEL_PREFIX characters are matched, so a label that wraps onto a
+    second line, or a line that holds the label beside it too, still scores as itself."""
     candidates = []
     for line in lines:
         squashed, owner = _squash(line)
         size = Counter(owner)
         for key, text in wanted:
-            score, span = _match(_squash_text(text), squashed)
+            score, span = _match(_squash_text(text)[:LABEL_PREFIX], squashed)
             # A word is the label's when most of its characters matched.
             hits = Counter(owner[i] for i in span)
             words = tuple(w for i, w in enumerate(line) if 2 * hits[i] > size[i])
@@ -389,15 +453,22 @@ def _head(label: str) -> str:
     return label.split("(")[0].strip()
 
 
+def _grouped(lines: Sequence[tuple[Word, ...]], words: Iterable[Word]) -> list[tuple[Word, ...]]:
+    """`words` cut into the lines their source read them in, top to bottom."""
+    keep = {id(w) for w in words}
+    out = [line for line in (tuple(w for w in ln if id(w) in keep) for ln in lines) if line]
+    return sorted(out, key=lambda line: min(_cy(w) for w in line))
+
+
 def _drop_label(lines: list[tuple[Word, ...]], label: str) -> list[tuple[Word, ...]]:
-    """The box's lines after its printed label, which may wrap onto several lines."""
+    """The box's lines after its printed label, which may wrap onto several lines and in any
+    order: a parenthetical the form prints last can sit on the line above the one before it.
+    So each line the label holds is dropped until one it does not hold, which is a value."""
     target = _squash_text(label)
-    k = max(
-        range(1, len(lines) + 1),
-        key=lambda k: fuzz.ratio(target, _squash(w for line in lines[:k] for w in line)[0]),
-        default=0,
-    )
-    return lines[k:]
+    for i, line in enumerate(lines):
+        if fuzz.partial_ratio(_squash(line)[0], target) < LABEL_LINE_MATCH:
+            return lines[i:]
+    return []
 
 
 def _squash(words: Iterable[Word]) -> tuple[str, list[int]]:
@@ -431,21 +502,22 @@ def _text_height(words: Sequence[Word]) -> float:
     return statistics.median(w.bottom - w.top for w in words)
 
 
-def _lines(words: Sequence[Word]) -> list[tuple[Word, ...]]:
-    """Words grouped into visual lines, top to bottom, each left to right. A line is
-    followed word by word, so a skewed scan's lines, which drift as they cross the page,
-    stay whole."""
-    if not words:
-        return []
-    tol = 0.5 * _text_height(words)
+def _reading_lines(words: Sequence[Word]) -> list[tuple[Word, ...]]:
+    """Words in the order their source gives them, cut where the next word leaves the line:
+    it rises or drops off it, or starts left of the word before.
+
+    This keeps the source's own lines, which hold a printed label apart from the typed value
+    under it even where their boxes overlap. Regrouping the page's words by height instead,
+    as this module used to, interleaves such a pair and neither reads whole."""
     lines: list[list[Word]] = []
-    for w in sorted(words, key=lambda w: w.x0):
-        near = min(lines, key=lambda line: abs(_cy(line[-1]) - _cy(w)), default=None)
-        if near and abs(_cy(near[-1]) - _cy(w)) <= tol and near[-1].x0 < w.x0:
-            near.append(w)
+    for w in words:
+        prev = lines[-1][-1] if lines else None
+        tol = 0.5 * max(w.bottom - w.top, prev.bottom - prev.top) if prev else 0
+        if prev and abs(_cy(w) - _cy(prev)) <= tol and w.x0 >= prev.x0:
+            lines[-1].append(w)
         else:
             lines.append([w])
-    return [tuple(line) for line in sorted(lines, key=lambda line: _cy(line[0]))]
+    return [tuple(line) for line in lines]
 
 
 def _text(line: Iterable[Word]) -> str:
@@ -492,59 +564,192 @@ def _inside(w: Word, box: Box) -> bool:
 
 
 def _record(
-    edition: Edition, page: list[Word], rows: dict[str, _Label], tol: float
+    edition: Edition,
+    page: list[Word],
+    anchor: _Label | None,
+    box: Box | None,
+    tol: float,
+    page_scan: Callable[[], Scan | None],
 ) -> tuple[list[Cell], list[str]]:
-    """Block 12 boxed as a grid: rows from the row labels' heights, columns from the
-    YEAR(S)/MONTH(S)/DAY(S) headings above them."""
+    """Block 12 read as a grid: its columns from the YEAR(S)/MONTH(S)/DAY(S) headings, and
+    its rows by where each value sits down the column.
+
+    The row labels do not place the rows. On a scan they sit a few points off the values
+    they name, by more than the rows are apart, and some are lost altogether, so a box drawn
+    around a label takes the row above or below it. The values themselves are a clean grid:
+    one to a row, in row order, down each column.
+    """
     block = edition.record
-    unboxed = [Cell(row.letter, col, Status.NOT_FOUND) for row in edition.rows for col in COLUMNS]
-    found = {
-        i: statistics.mean(_cy(w) for w in rows[row.letter].words)
-        for i, row in enumerate(edition.rows)
-        if row.letter in rows
-    }
-    order = sorted(found)
-    steps = [(found[j] - found[i]) / (j - i) for i, j in pairwise(order)]
-    if not steps:
-        return unboxed, [f"Block {block}'s rows were not found; not read."]
-    pitch = statistics.median(steps)
-    first = statistics.median(found[i] - i * pitch for i in order)  # where row a sits
-    # The rows are evenly spaced, so a row whose label OCR missed sits between its neighbours.
-    centres = {i: found.get(i, first + i * pitch) for i in range(order[0], order[-1] + 1)}
-    left = min(lb.x0 for lb in rows.values()) - tol
-    words = [w for w in page if _cx(w) >= left and first - 3 * pitch <= _cy(w)]
-
-    headings = []
-    above = [w for w in words if _cy(w) < first - pitch / 2]
-    for name in COLUMNS:
-        best = max(above, key=lambda w: fuzz.ratio(name, _squash_text(w.text)), default=None)
-        if best is None or fuzz.ratio(name, _squash_text(best.text)) < 75:
-            return unboxed, [
-                f"Block {block}'s YEAR(S)/MONTH(S)/DAY(S) headings were not found; not read."
-            ]
-        headings.append(_cx(best))
-    width = statistics.median(b - a for a, b in pairwise(headings))
-    columns = [(c - width / 2, c + width / 2) for c in headings]
-
-    cells, notes = [], []
-    words.sort(key=lambda w: w.x0)
-    for i, row in enumerate(edition.rows):
-        name = f"block {block}{row.letter} ({row.label.lower()})"
-        if i not in centres:
-            notes.append(f"The label of {name} was not found; not read.")
-            cells += [Cell(row.letter, col, Status.NOT_FOUND) for col in COLUMNS]
-            continue
-        top, bottom = centres[i] - pitch / 2, centres[i] + pitch / 2
-        boxes = [(x0, top, x1, bottom) for x0, x1 in columns]
-        inside = [tuple(w for w in words if _inside(w, box)) for box in boxes]
-        status = Status.READ if _row_value(map(_cell, inside), row.is_date) else Status.REFUSED
-        if status is Status.REFUSED:
-            notes.append(f"The value of {name} could not be read; not used.")
-        cells += [
-            Cell(row.letter, col, status, box, ws)
-            for col, box, ws in zip(COLUMNS, boxes, inside, strict=True)
+    rows = edition.rows
+    unboxed = [Cell(row.letter, col, Status.NOT_FOUND) for row in rows for col in COLUMNS]
+    if anchor is None:
+        return unboxed, [f"Block {block} was not found on the page; not read."]
+    headings = _headings(page, anchor)
+    if headings is None:
+        return unboxed, [
+            f"Block {block}'s YEAR(S)/MONTH(S)/DAY(S) headings were not found; not read."
         ]
-    return cells, notes
+    columns = _columns(headings)
+    floor = box[3] if box else max(w.bottom for w in page)
+    stacks = {
+        name: _stack(
+            [w for w in page if x0 <= _cx(w) < x1 and headings[name].bottom < _cy(w) < floor],
+            tol,
+        )
+        for name, (x0, x1) in columns.items()
+    }
+    placed = _place(stacks, max(h.bottom for h in headings.values()), floor, len(rows))
+    if placed is None:
+        return unboxed, [f"Block {block}'s rows could not be told apart; not read."]
+
+    cells: list[Cell] = []
+    notes: list[str] = []
+    for i, row in enumerate(rows):
+        name = f"block {block}{row.letter} ({row.label.lower()})"
+        words = {column: placed[column].get(i, ()) for column in columns}
+        if not all(words.values()):
+            notes.append(f"No value was found in {name}; not read.")
+            cells += [Cell(row.letter, column, Status.NOT_FOUND) for column in COLUMNS]
+            continue
+        boxes = {
+            column: (
+                columns[column][0],
+                min(w.top for w in ws),
+                columns[column][1],
+                max(w.bottom for w in ws),
+            )
+            for column, ws in words.items()
+        }
+        digits = [
+            _cell_digits(_cell(words[column]), width, boxes[column], page_scan)
+            for column, width in zip(COLUMNS, CELL_DIGITS, strict=True)
+        ]
+        if _row_value(digits, row.is_date) is None:
+            notes.append(f"The value of {name} could not be read; not used.")
+            cells += [Cell(row.letter, c, Status.REFUSED, boxes[c], words[c]) for c in COLUMNS]
+            continue
+        cells += [
+            Cell(row.letter, c, Status.READ, boxes[c], words[c], d)
+            for c, d in zip(COLUMNS, digits, strict=True)
+        ]
+    return cells, notes + _record_check(edition, cells)
+
+
+def _place(
+    stacks: Mapping[str, Sequence[tuple[Word, ...]]], top: float, floor: float, count: int
+) -> dict[str, dict[int, tuple[Word, ...]]] | None:
+    """Which row of block 12 each cell belongs to, column by column; None when the cells
+    cannot be placed.
+
+    A column holding a cell for every row is read by rank: its k-th cell down is row k.
+    Where OCR read fewer cells, as it does to a row of zeroes, the rows between them are
+    counted off in steps of how far apart the rows are, which is the median step the cells
+    themselves show; which row such a column starts on is then one rounding against the
+    block's own height. Either way the cells have to sit evenly afterwards, so a cell one
+    row out of place is refused rather than reported as another row's period of service.
+    """
+    band = (floor - top) / count  # one row's share of the block's height
+    if band <= 0:
+        return None
+    centres = {name: [_centre(cell) for cell in cells] for name, cells in stacks.items()}
+    steps = [b - a for cys in centres.values() for a, b in pairwise(cys)]
+    pitch = statistics.median(steps) if steps else band
+    placed: dict[str, dict[int, tuple[Word, ...]]] = {}
+    for name, cells in stacks.items():
+        cys = centres[name]
+        if not cys:
+            placed[name] = {}
+            continue
+        if len(cys) == count:
+            index = list(range(count))
+        else:
+            apart = list(accumulate((round((b - a) / pitch) for a, b in pairwise(cys)), initial=0))
+            origin = statistics.median(cy - n * pitch for cy, n in zip(cys, apart, strict=True))
+            index = [round((origin - top) / pitch - 0.5) + n for n in apart]
+        # A cell below the last row belongs to whatever sits under the block, not to a row.
+        keep = [(i, cy, cell) for i, cy, cell in zip(index, cys, cells, strict=True) if i < count]
+        rows = [i for i, _, _ in keep]
+        if not rows or rows[0] < 0 or rows != sorted(set(rows)):
+            return None
+        if not _even([cy for _, cy, _ in keep], rows, band):
+            return None
+        placed[name] = {i: cell for i, _, cell in keep}
+    return placed
+
+
+def _even(cys: Sequence[float], index: Sequence[int], band: float) -> bool:
+    """Whether cells at heights `cys`, read as rows `index`, sit evenly one row apart: a
+    line through them passes within half a row of every one. Its slope is how far apart the
+    rows are, and has to be about one band, or these are not the block's rows."""
+    if len(cys) < 2:
+        return True
+    middle = statistics.mean(index)
+    pitch = sum((i - middle) * cy for i, cy in zip(index, cys, strict=True)) / sum(
+        (i - middle) ** 2 for i in index
+    )
+    if not PITCH_OF_BAND[0] * band <= pitch <= PITCH_OF_BAND[1] * band:
+        return False
+    rows = list(zip(cys, index, strict=True))
+    origin = statistics.median(cy - i * pitch for cy, i in rows)  # where row a sits
+    return all(abs(cy - origin - i * pitch) <= pitch / 2 for cy, i in rows)
+
+
+def _headings(words: Iterable[Word], anchor: _Label) -> dict[str, Word] | None:
+    """The word that reads as each of block 12's column headings; None if one is missing."""
+    words = list(words)
+    found: dict[str, Word] = {}
+    used: set[int] = set()
+    for name in COLUMNS:
+        best = _heading(name, [w for w in words if id(w) not in used], anchor)
+        if best is None:
+            return None
+        found[name] = best[1]
+        used.add(id(best[1]))
+    return found
+
+
+def _heading(name: str, words: Iterable[Word], anchor: _Label | None) -> tuple[float, Word] | None:
+    """(score, word) for the word that best reads as block 12's column heading `name`. With
+    block 12's label or its first row label as `anchor`, only words right of it count,
+    nearest first, so "years" in block 11's own label is not taken for the heading."""
+    near = (anchor.x0, anchor.top) if anchor else (0.0, 0.0)
+    scored = [
+        (score, w)
+        for w in words
+        if (score := fuzz.ratio(name, _squash_text(w.text))) >= HEADING_MATCH
+        and (anchor is None or w.x0 > anchor.x0)
+    ]
+    return max(
+        scored, key=lambda sw: (sw[0], -math.dist((sw[1].x0, sw[1].top), near)), default=None
+    )
+
+
+def _columns(headings: Mapping[str, Word]) -> dict[str, tuple[float, float]]:
+    """Each column's left and right edge: its heading's centre, as wide as the median gap
+    between neighbouring headings."""
+    centres = [_cx(headings[name]) for name in COLUMNS]
+    width = statistics.median(b - a for a, b in pairwise(centres))
+    return {
+        name: (centre - width / 2, centre + width / 2)
+        for name, centre in zip(COLUMNS, centres, strict=True)
+    }
+
+
+def _stack(words: Sequence[Word], tol: float) -> list[tuple[Word, ...]]:
+    """One column's words grouped into the cells they sit in, top to bottom. A cell's words
+    sit on one line, so they are grouped by the height of their centres."""
+    groups: list[list[Word]] = []
+    for w in sorted(words, key=_cy):
+        if groups and _cy(w) - _cy(groups[-1][-1]) <= tol:
+            groups[-1].append(w)
+        else:
+            groups.append([w])
+    return [tuple(sorted(group, key=lambda w: w.x0)) for group in groups]
+
+
+def _centre(words: Iterable[Word]) -> float:
+    """How far down the page one cell's words sit, on average."""
+    return statistics.mean(_cy(w) for w in words)
 
 
 def _record_lines(edition: Edition, cells: Sequence[Cell]) -> list[str]:
@@ -552,10 +757,46 @@ def _record_lines(edition: Edition, cells: Sequence[Cell]) -> list[str]:
     lines = []
     for row in edition.rows:
         row_cells = [c for c in cells if c.row == row.letter]
-        if all(c.status is Status.READ for c in row_cells):
-            value = _row_value((_cell(c.words) for c in row_cells), row.is_date)
-            lines.append(f"{row.letter.upper()}. {row.label} {value}")
+        if row_cells and all(c.status is Status.READ for c in row_cells):
+            lines.append(
+                f"{row.letter.upper()}. {row.label} {' '.join(c.value for c in row_cells)}"
+            )
     return lines
+
+
+def _record_check(edition: Edition, cells: Sequence[Cell]) -> list[str]:
+    """A note when the net active service read does not follow from the dates it sits
+    between. The form counts that period inclusively, and withholds time lost (block 29),
+    so a difference is reported rather than corrected."""
+    read = {
+        row.letter: [int(c.value) for c in cells if c.row == row.letter and c.status is Status.READ]
+        for row in edition.rows
+    }
+    if any(len(read[letter]) != 3 for letter in (ENTERED, SEPARATED, NET_ACTIVE)):
+        return []
+    try:
+        entered, separated = (date(*read[letter]) for letter in (ENTERED, SEPARATED))
+    except ValueError:  # pragma: no cover - a read row is already a possible date
+        return []
+    years, months, days = read[NET_ACTIVE]
+    off = (separated - _advance(entered, 12 * years + months, days - 1)).days
+    if abs(off) <= RECORD_DAYS_SLACK:
+        return []
+    net = next(row for row in edition.rows if row.letter == NET_ACTIVE)
+    return [
+        f"Block {edition.record}{NET_ACTIVE} ({net.label.lower()}) is {abs(off)} days "
+        f"{'short of' if off > 0 else 'longer than'} the period between the dates in "
+        f"{edition.record}{ENTERED} and {edition.record}{SEPARATED}; the form's own figure "
+        "is used (time lost is not read)."
+    ]
+
+
+def _advance(start: date, months: int, days: int) -> date:
+    """`start` plus whole calendar months, then days, as the form counts service."""
+    carry, month = divmod(start.month - 1 + months, 12)
+    year = start.year + carry
+    day = min(start.day, monthrange(year, month + 1)[1])
+    return date(year, month + 1, day) + timedelta(days=days)
 
 
 def _cell(words: Iterable[Word]) -> str:
@@ -571,12 +812,55 @@ def _digits(cell: str) -> str:
     return s
 
 
-def _row_value(cells: Iterable[str], is_date: bool) -> str | None:
-    """'YYYY MM DD' when the three cells hold a possible value; None rather than a guess."""
-    digits = [_digits(c) for c in cells]
-    if not all(d.isdigit() for d in digits) or tuple(map(len, digits)) != CELL_DIGITS:
+def _cell_digits(
+    text: str, width: int, box: Box, page_scan: Callable[[], Scan | None]
+) -> str | None:
+    """A cell's `width` digits, or None. A cell the text layer did not leave as digits is
+    cut out of the page image and read again, and kept only if that reading is digits."""
+    if (digits := _of_width(text, width)) is not None:
+        return digits
+    return _of_width(_reread(page_scan(), box), width)
+
+
+def _of_width(text: str, width: int) -> str | None:
+    digits = _digits(text)
+    return digits if digits.isdigit() and len(digits) == width else None
+
+
+def _reread(scan: Scan | None, box: Box) -> str:
+    """One cell's box, cut out of the page image and read again as digits and nothing else.
+    Empty when the page is not a scan, or the `ocr` extra or tesseract is not installed."""
+    if scan is None:
+        return ""
+    try:
+        import pytesseract
+    except ImportError:  # pragma: no cover - optional dependency
+        return ""
+    pads = (-CELL_PAD, -CELL_PAD, CELL_PAD, CELL_PAD)
+    x0, top, x1, bottom = ((v + pad) * scan.scale for v, pad in zip(box, pads, strict=True))
+    crop = scan.image.crop((int(x0), int(top), int(x1), int(bottom)))
+    try:
+        return pytesseract.image_to_string(crop, config=CELL_OCR).strip()
+    except (OSError, RuntimeError):  # pragma: no cover - tesseract missing or failing
+        return ""
+
+
+def _scan_page(scan: ScanPages | None, page: int) -> Scan | None:
+    """Page `page` of the scan behind the file, rendered on the first call."""
+    if scan is None:
         return None
-    y, m, d = map(int, digits)
+    try:
+        pages = scan()
+    except ExtractionError:  # pragma: no cover - the 'ocr' extra is not installed
+        return None
+    return pages[page] if page < len(pages) else None
+
+
+def _row_value(digits: Sequence[str | None], is_date: bool) -> str | None:
+    """'YYYY MM DD' when the three cells hold a possible value; None rather than a guess."""
+    if any(d is None for d in digits):
+        return None
+    y, m, d = (int(v) for v in digits)
     if is_date:
         try:
             date(y, m, d)

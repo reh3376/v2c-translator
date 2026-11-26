@@ -438,16 +438,33 @@ inside the specialties, and awards end up in the education list.
 So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position instead:
 
 1. It finds the printed block labels by fuzzy match, so OCR noise such as `REC0RD` or
-   `DEPART MENT` still matches. Each printed word belongs to at most one label.
+   `DEPART MENT` still matches. A label is matched against the lines its source read, the
+   text layer's own or OCR's, and never against a regrouping of the page's words: on a
+   scan a small label row and the typed row under it overlap, and regrouped by height
+   their words interleave, so no label reads whole. Only the label's first 24 characters
+   are matched, so a label that wraps onto a second line, or whose line also holds the
+   label beside it, is still recognised. Each printed word belongs to at most one label.
 2. It boxes each block from its label to the next label on the right and down to the next
-   row of labels, then takes the words inside the box.
-3. It reads block 12 as a grid. The row labels give the rows, and the `YEAR(S)`,
-   `MONTH(S)` and `DAY(S)` headings give the columns. In the number cells only, it
-   repairs OCR's usual confusions: `O` for 0, `l`, `I` or `|` for 1, `S` for 5, and
-   stray punctuation. When a row's cells still do not hold 4, 2 and 2 digits, or hold an
-   impossible month or day, it leaves the row out and adds a note. It does not guess.
-4. It writes blocks 2, 4a, 4b, 11, 12, 13 and 14 back out as plain text, one block after
-   another. The label-based parser reads that text unchanged.
+   row of labels, then takes the words inside the box, keeping their source's lines.
+3. It reads block 12 as a grid. The `YEAR(S)`, `MONTH(S)` and `DAY(S)` headings give the
+   columns, and each column's own values give the rows: a column with a value for every
+   row is read in order, top to bottom, and a column OCR read fewer values in has its rows
+   counted off by how far apart the rows sit. The row labels are not used for this. On a
+   scan they sit further off the values they name than the rows are apart, and some are
+   lost, so a box drawn around a label takes the row above or below. A row whose values
+   do not then line up is refused rather than reported as another row's service.
+4. In the number cells only, it repairs OCR's usual confusions: `O` for 0, `l`, `I` or `|`
+   for 1, `S` for 5, and stray punctuation. A cell that still does not hold its 4, 2 or 2
+   digits is cut out of the page image, where the file is a scan, and read again with
+   tesseract as digits alone; a reading that is still not digits leaves the row out with a
+   note. It does not guess. Where rows 12a, 12b and 12c all read, it checks the net active
+   service against the period between the two dates, counted inclusively as the form
+   counts it, and notes a difference of more than three days. Time lost (block 29) is
+   withheld from the reader, so that is a note and never a correction.
+5. It writes blocks 2, 4a, 4b, 11, 12, 13 and 14 back out as plain text, one block after
+   another, joining a block's lines where its entries are separated by `//` (which OCR may
+   write as `/ /`) so an entry that wraps stays one entry. The label-based parser reads
+   that text unchanged.
 
 No other block is written, so the name, SSN, birth date, addresses, remarks and
 separation codes never reach the parser. The reader also boxes those blocks and writes no
@@ -663,7 +680,8 @@ v2c-translator/
 ├── uv.lock
 ├── src/dd214kw/
 │   ├── cli.py                  # argparse CLI: build-index | translate | lookup | inspect-layout
-│   ├── extract.py              # PDF text layer, word positions, form fields, OCR fallback
+│   ├── extract.py              # PDF text layer, word positions, form fields, OCR fallback,
+│   │                           #   and the page images behind a scan
 │   ├── inspect_layout.py       # a DD-214 page's geometry, with no text, to share
 │   ├── extractors/             # read(), detect(): one module per document type, emitting facts
 │   │   ├── dd214.py            # DD-214 text (2000 + 2022 layouts) and JSON
@@ -698,7 +716,8 @@ v2c-translator/
 │   ├── test_vmet.py            # VMET alone and with a DD-214
 │   ├── test_golden.py          # each fixture renders byte-identical to docs/examples/
 │   ├── test_pii_guard.py       # pii_guard flags records and IDs, passes placeholders
-│   ├── test_layout.py          # DD-214 PDFs read by block position: text layer, noise, OCR
+│   ├── test_layout.py          # DD-214 PDFs read by block position: text layer, noise,
+│   │                           #   overlapping label and value rows, OCR, a scan's image
 │   ├── test_inspect_layout.py  # inspect-layout prints geometry only, on every synthetic form
 │   ├── test_translate.py       # end-to-end (skipped if no index is built)
 │   ├── synthetic_dd214.py      # draws a fictional AUG 2009 DD-214 PDF, and scans and OCRs it
