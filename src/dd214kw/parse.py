@@ -166,7 +166,7 @@ LONG_PAREN_RE = re.compile(r"\([^()]{25,}\)", re.DOTALL)
 TRAILING_BLOCK_NUM_RE = re.compile(r"[\s|]*\b\d{1,2}\s*[A-J]?\s*\.?\s*$")
 # A character the source could not read, and the control characters a text layer may carry.
 # Dropped rather than kept, so one unreadable letter does not make its word unreadable.
-UNREADABLE_RE = re.compile(r"[�\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]+")
+UNREADABLE_RE = re.compile(r"[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]+")
 # The "//" the form puts between entries, as OCR reads it when it cannot tell the strokes
 # apart: "I I", "/ /", "| |", "1 1". Only between entries, never inside a word, so a mark
 # pair needs whitespace around it and text either side of it.
