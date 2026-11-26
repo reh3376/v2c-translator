@@ -4,13 +4,17 @@ import "@fontsource-variable/public-sans";
 import "@fontsource/ibm-plex-mono/400.css";
 import "./theme.css";
 import "./globals.css";
+import { COPY } from "@/content/copy";
+import { serverConfig } from "@/server/config";
 import { BOOT_SCRIPT } from "@/theme/choice";
 
-export const metadata: Metadata = {
-  title: "Civilian keywords from your service record",
-  description:
-    "Turn DD-214s, DD-215s and a VMET into civilian job titles, skills and keywords. Runs on this computer.",
-};
+/** Read per request, like the rest of the mode-dependent copy. */
+export function generateMetadata(): Metadata {
+  return {
+    title: "Civilian keywords from your service record",
+    description: COPY[serverConfig().mode].metaDescription,
+  };
+}
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

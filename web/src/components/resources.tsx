@@ -9,16 +9,17 @@ import { item, pressable, stagger } from "./motion";
  *
  * Every link leaves this page, so each opens in a new tab and says so to a screen reader. The
  * addresses carry no query string, so nobody can tell from them that the reader came from here.
+ *
+ * `lede` comes from `content/copy.ts`, because what it can promise about the reader's documents
+ * depends on whether they are on this computer or on a server.
  */
-export function Resources() {
+export function Resources({ lede }: { lede: string }) {
   const reduced = useReducedMotion() ?? false;
 
   return (
     <section className="resources" aria-labelledby="resources-heading">
       <h2 id="resources-heading">Resources for veterans</h2>
-      <p className="resources-lede">
-        These sites are run by other people. Opening one leaves this page; your documents stay on this computer.
-      </p>
+      <p className="resources-lede">{lede}</p>
 
       <div className="resource-groups">
         {RESOURCE_GROUPS.map((group) => (
