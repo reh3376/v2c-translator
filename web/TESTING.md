@@ -2,6 +2,11 @@
 
 Run these steps on your own computer before you merge a change to `web/`.
 
+Steps 1 to 57 are the app in **local** mode, which is what `pnpm dev` gives you and what
+most changes affect. Steps 58 to 66 are the **hosted** mode, which runs from the container
+image; do those as well for any change to the mode switch, the privacy copy, the robot
+check, the limits, or anything the page loads by path.
+
 ## Prerequisites
 
 1. Clone the repository. In its root, run `uv sync`.
@@ -211,6 +216,71 @@ The six pictures are original illustrations. To use a public-domain DoD or DVIDS
     fade. Turn reduced motion back off.
 57. In dark, press each picture again. Expected: every scene is as legible as in light. The
     Navy smoke is clearly lighter than the night sky behind it, and nothing glows.
+
+## Hosted mode
+
+The hosted app is the same code with `V2C_MODE=hosted`, served under `/v2c`, bot-checked
+and rate-limited. It runs from the container image, so this part needs Docker. The keys
+below are Cloudflare's documented public test values, which always pass; they are not
+credentials, and they are why this can be done with no Cloudflare account.
+
+Most of it is already automatic. `deploy/smoke.sh` checks the boot refusal, the loopback
+binding, the read-only filesystem, the copy, the robot check and the logs;
+`deploy/verify-behind-caddy.sh` checks the page in a browser behind a Caddy configured
+like the career site's. Build once, run both, and then do by hand only what neither can:
+
+```bash
+docker build -t v2c:local .                        # from the repository root; takes a few minutes
+deploy/smoke.sh v2c:local
+uv run --extra ocr python tests/make_scan.py --out /tmp/scan.pdf --pages 5
+deploy/smoke.sh v2c:local --scan /tmp/scan.pdf     # also reports peak memory
+deploy/verify-behind-caddy.sh v2c:local
+```
+
+Then run the image on its own and look at it:
+
+```bash
+docker run --rm -p 127.0.0.1:3009:3009 \
+  --read-only --tmpfs /tmp/v2c:rw,noexec,nosuid,size=256m,mode=1777 \
+  -e V2C_MODE=hosted \
+  -e TURNSTILE_SITE_KEY=1x00000000000000000000AA \
+  -e TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
+  v2c:local
+# then open http://localhost:3009/v2c
+```
+
+58. Look at the page. Expected: the panel beside the drop zone is headed **What happens to
+    your documents** and reads "Your documents are sent over HTTPS to this server, read in
+    memory, and deleted as soon as your report is ready. Nothing is stored, logged or
+    shared.", then "Don't upload a document you aren't comfortable sending." Nothing on
+    the page says the documents stay on this computer. Under **How it works** the lede
+    says all three steps happen on this server. Under **Resources for veterans** the lede
+    says nothing about your documents goes with you. The hint under the drop zone says
+    scans are read with OCR, not that OCR has to be installed.
+59. Look between the drop zone and the buttons. Expected: a line reading "Before you
+    translate, confirm you're not a robot." and, under it, Cloudflare's widget. With the
+    test key it ticks itself within a second or two. **This is the check no script can
+    do:** `deploy/verify-behind-caddy.sh` proves the script and its requests are allowed,
+    but a test key draws no challenge box, so whether the box appears is a thing only a
+    person can see. If it is missing with a real key, the policy's `frame-src` is wrong.
+60. Click **Try with sample documents**. Expected: a report, as in step 2.
+61. Translate again. Expected: it works a second time. The widget is asked for a fresh
+    token after each translation, because a token is good for one.
+62. Open the browser's console and translate once more. Expected: nothing about a
+    Content-Security-Policy, and no blocked request.
+63. Watch the container's output through all of the above. Expected: one line at boot
+    reading `v2c hosted mode: 2 concurrent, queue 8, 10 per 10 min per visitor`, and
+    nothing else at all. No file name, no document text, no address.
+64. Add a text file the translator cannot read, as in step 7, and translate. Expected: the
+    page names the file and says "Unrecognised document". The container prints one line
+    of the form `translate failed id=… kind=…` and nothing more, and in particular not the
+    name of your file.
+65. Translate eleven times in ten minutes from the same browser. Expected: the eleventh
+    says "You've translated several times just now. Try again in a few minutes."
+66. Stop the container and start it again without `TURNSTILE_SECRET_KEY`. Expected: it
+    exits straight away, printing `v2c cannot start:` and which variable is missing. It
+    must not stay up: a page that promises a robot check with no check behind it is worse
+    than a page that will not load.
 
 ## Taking the screenshots again
 
