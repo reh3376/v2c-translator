@@ -44,6 +44,8 @@ GRAMMAR = tuple(
         rf"block B(?P<block>\w+) status (read|refused|not-found|withheld)( bbox {BOX})?",
         rf"cell B12[a-i] (yr|mo|dy) status (read|refused|not-found)"
         rf"( bbox {BOX} words \d{{1,2}}( shape {SHAPE})?)?",
+        rf"cell B12[a-i] (yr|mo|dy) reread crop {BOX} zoom \d\.\d shape ({SHAPE}|none)"
+        rf" (accepted|refused)",
     )
 )
 VALUE_TOKENS = {
@@ -83,6 +85,7 @@ def scan_png(tmp_path_factory) -> Path:
         "overlap",
         pytest.param("ocr", marks=needs_tesseract),
         pytest.param("scan", marks=[needs_tesseract, needs_ocr_extra]),
+        pytest.param("scan-text", marks=[needs_tesseract, needs_ocr_extra]),
     ],
 )
 def variant(request, tmp_path_factory) -> Variant:
@@ -98,6 +101,8 @@ def variant(request, tmp_path_factory) -> Variant:
             form.write_ocr_pdf(request.getfixturevalue("scan_png"), pdf)
         case "scan":
             form.write_image_pdf(request.getfixturevalue("scan_png"), pdf)
+        case "scan-text":
+            form.write_scan_pdf(request.getfixturevalue("scan_png"), pdf)
     return Variant(request.param, pdf, request.param == "scan")
 
 
@@ -186,6 +191,7 @@ def test_inspection_finds_the_form_and_what_the_reader_did(variant, inspected):
         "overlap": ("text-layer", "pt", "drawn"),
         "ocr": ("text-layer", "pt", "image"),
         "scan": ("ocr", "px", "image"),
+        "scan-text": ("text-layer", "pt", "image"),
     }[variant.name]
     assert f"source {source}" in lines
     assert re.search(rf"^page 0 size {N} {N} unit {unit}$", text, re.M)
@@ -214,6 +220,19 @@ def test_noisy_form_shows_the_cells_the_reader_refused(tmp_path):
     lines = report(inspect(form.write_text_pdf(tmp_path / "dd214.pdf", noisy=True)))
     rows = dict(re.findall(r"^cell B12(\w) yr status ([\w-]+)", "\n".join(lines), re.M))
     assert rows == {row: "refused" if row in "dg" else "read" for row in "abcdefghi"}
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_output_shows_what_came_back_when_a_cell_was_read_again(scan_png, tmp_path):
+    """Block 12c's years are garbled in this text layer, so the reader cuts that cell out
+    of the page image and reads it again. The report shows the crop, how far it was
+    enlarged, and the shape of what came back, so a failing cell can be diagnosed without
+    anyone seeing its digits."""
+    pdf = form.write_scan_pdf(scan_png, tmp_path / "scan-text.pdf")
+    lines = [line for line in report(inspect(pdf)) if " reread " in line]
+    assert any(line.startswith("cell B12c yr reread crop ") for line in lines)
+    assert any(line.endswith(" accepted") for line in lines)
 
 
 def test_output_shows_a_block_refused_for_a_lost_label(tmp_path):

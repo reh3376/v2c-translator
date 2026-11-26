@@ -2,10 +2,15 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import pytest
+
+from dd214kw.canonical import _names, _snap
+from dd214kw.evidence import OccupationHeld, Source
 from dd214kw.extractors import read
 from dd214kw.parse import (
     detect_version,
     parse_courses,
+    parse_decorations,
     parse_duration,
     parse_specialties,
 )
@@ -13,6 +18,7 @@ from dd214kw.resolve import resolve
 from dd214kw.rules import rule_keywords, smart_title
 
 FIX = Path(__file__).parent / "fixtures"
+SOURCE = Source("dd214", "a" * 12, "block 11", None, 1.0)
 
 
 def test_army_2000_layout():
@@ -46,7 +52,7 @@ def test_navy_2022_layout():
     assert rec.service_time["sea"].years == 5
     assert len(rec.training) == 5
     awards = [(a.value.name, a.value.count) for a in rec.awards]
-    assert ("SEA SERVICE DEPLOYMENT RIBBON", 3) in awards
+    assert ("NAVY SEA SERVICE DEPLOYMENT RIBBON", 3) in awards  # the official name
 
 
 def test_sensitive_blocks_never_captured():
@@ -75,6 +81,130 @@ def test_specialties_without_separators():
     assert [s.months for s in specs] == [36, 18]
 
 
+# What a scanner's text layer left in blocks 11, 13 and 14 of a real AUG 2009 form: the
+# "//" between entries read as "I I", a letter lost to the replacement character, a line
+# wrapped between an entry's years and its months, and "NOTHING FOLLOWS" misread. The
+# award and course text is the scan's; the specialty codes, titles and times are invented.
+OCR_SPECIALTIES = (
+    "25U60 2B SI GI NT SGT/ CHIEF - 11 YRS\n"
+    "2 �OS I I 25B4L NETWORK SYSTEMS OPERATOR - 23 YRS 5 MOS I I NOTHTNG FOLLOWS"
+)
+OCR_AWARDS = (
+    "JOL T MERLTORLOUS UNIT AWARD B 3RD AWARD) I I ARMY GOOD CONDUCT\n"
+    "CONT IN BL CK 18\nNOTHTNG FOLLOWS"
+)
+OCR_COURSES = "ADV NCO CR, TANCOC � 2004\nAIRBORNE, I I SOCC J NTRUCTOR T AL NI NG CRS 2015"
+
+
+def test_a_specialty_wrapped_between_its_years_and_months_keeps_both():
+    """The entries are separated by "//", which OCR read as "I I", so the line break inside
+    the first entry is only a wrap: "11 YRS" and "2 MOS" are one time in specialty, and the
+    second entry's title starts at its code."""
+    specs = parse_specialties(OCR_SPECIALTIES)
+    assert [(s.raw, s.months) for s in specs] == [
+        ("25U60 2B SI GI NT SGT/ CHIEF - 11 YRS 2 OS", 134),
+        ("25B4L NETWORK SYSTEMS OPERATOR - 23 YRS 5 MOS", 281),
+    ]
+
+
+def test_a_misread_nothing_follows_is_not_an_entry():
+    for entries in (
+        parse_specialties(OCR_SPECIALTIES),
+        parse_decorations(OCR_AWARDS),
+        parse_courses(OCR_AWARDS),
+    ):
+        assert not any("NOTH" in str(entry) for entry in entries)
+
+
+def test_a_continued_in_block_marker_is_not_an_award():
+    assert not any("CONT IN" in d for d in parse_decorations(OCR_AWARDS))
+
+
+def test_an_ocr_read_separator_splits_two_merged_entries():
+    """ "//" read as "I I" merged two awards into one entry, and two courses into one."""
+    assert len(parse_decorations(OCR_AWARDS)) == 2
+    assert [c.raw for c in parse_courses(OCR_COURSES)] == [
+        "ADV NCO CR, TANCOC 2004",
+        "AIRBORNE",
+        "SOCC J NTRUCTOR T AL NI NG CRS 2015",
+    ]
+
+
+# Block 13 as the scan left it, in the lines it was read in: every award garbled, one line
+# holding two awards with the "//" between them read as ") I I", one continuation marker.
+OCR_BLOCK_13 = (
+    "BRONZE STAR MEDAL\n"
+    "DEFENSE MERITORIOUS SERVICE MEDAL (2ND AWARD)\n"
+    "JOTKT SERVICE COMMENDA TL ON MEDAL\n"
+    "ARMY COMMEND A TL ON MEDAL (2ND AWARD)\n"
+    "MERITORIOUS SERVICE MEDAL (4TH AWARD\n"
+    "ARMY ACHIEVEMENT MEDAL (2ND AWARD)\n"
+    "JOL T MERLTORLOUS UNIT AWARD B 3RD AWARD) I I ARMY GOOD CONDUCT\n"
+    "CONT IN BL CK 18\n"
+    "NOTHTNG FOLLOWS"
+)
+
+
+def test_garbled_awards_read_as_the_awards_they_name(tmp_path):
+    """Every name here came off a real scan. The count stands even where OCR lost a bracket,
+    and the two awards OCR ran together are two."""
+    doc = tmp_path / "dd214.json"
+    doc.write_text(json.dumps({"form": "DD-214", "branch": "ARMY", "decorations": OCR_BLOCK_13}))
+    awards = [(a.value.name, a.value.count) for a in resolve(read(doc)[1]).awards]
+    assert awards == [
+        ("BRONZE STAR MEDAL", 1),
+        ("DEFENSE MERITORIOUS SERVICE MEDAL", 2),
+        ("JOINT SERVICE COMMENDATION MEDAL", 1),
+        ("ARMY COMMENDATION MEDAL", 2),
+        ("MERITORIOUS SERVICE MEDAL", 4),
+        ("ARMY ACHIEVEMENT MEDAL", 2),
+        ("JOINT MERITORIOUS UNIT AWARD", 3),
+        ("ARMY GOOD CONDUCT MEDAL", 1),
+    ]
+
+
+def test_an_award_keeps_the_device_it_was_given_with(tmp_path):
+    doc = tmp_path / "dd214.json"
+    doc.write_text(
+        json.dumps(
+            {
+                "form": "DD-214",
+                "decorations": "EXPERT MARKSMANSHIP BADGE WITH RIFLE BAR//ZORGLE OF HONOUR",
+            }
+        )
+    )
+    names = [a.value.name for a in resolve(read(doc)[1]).awards]
+    assert names == [
+        "EXPERT MARKSMANSHIP QUALIFICATION BADGE WITH RIFLE BAR",
+        "ZORGLE OF HONOUR",  # no official name reads like it, so the document's text stands
+    ]
+
+
+def test_a_garbled_course_reads_as_the_course_it_names():
+    titles = [c.title for c in parse_courses("BASLC LEADER COURSF, 4 WEEKS, 2012//ANCOC, 2004")]
+    assert titles == ["BASIC LEADER COURSE", "ADVANCED NONCOMMISSIONED OFFICER COURSE"]
+
+
+def test_a_course_too_garbled_to_place_keeps_the_documents_text():
+    """Both of these came off a real scan, and neither reads as a course we list. A wrong
+    course title would be a fact the document does not hold."""
+    assert [c.title for c in parse_courses(OCR_COURSES)] == [
+        "ADV NCO CR, TANCOC",
+        "AIRBORNE",
+        "SOCC J NTRUCTOR T AL NI NG CRS",
+    ]
+
+
+@pytest.mark.parametrize("kind", ["awards", "courses"])
+def test_every_official_name_and_abbreviation_reads_as_itself(kind):
+    """The name lists are data, so this is their lint: no name or abbreviation may read as
+    another row's, which would quietly rename one award or course as another."""
+    names = _names(kind)
+    assert len(names) == len({letters for letters, _ in names})
+    for letters, official in names:
+        assert _snap(letters, kind) == official
+
+
 def test_courses_units():
     c = parse_courses("FORKLIFT OPERATOR, 3 DAYS, JUN 2018//SAFETY OFFICER COURSE, 40 HRS, 2019")
     assert c[0].title == "FORKLIFT OPERATOR" and c[0].year == 2018
@@ -96,6 +226,34 @@ def test_rule_keywords():
     assert ("skills", "First Aid") in terms
     perf = next(k for k in rule_keywords(rec) if k.term == "Recognized for Performance Excellence")
     assert "5 individual" in perf.sources[0]
+
+
+def _specialties_only(*months: int):
+    """A profile whose only facts are specialties: the record of service was not read."""
+    return resolve(
+        [
+            OccupationHeld(None, f"25U{i}0 SIGNAL SUPPORT SPECIALIST", m, None, None, SOURCE)
+            for i, m in enumerate(months, start=1)
+        ]
+    )
+
+
+def test_service_length_is_the_longest_specialty_when_the_record_is_not_read():
+    """Specialty periods overlap: one soldier's specialty changes as the career runs. Summed,
+    a 12-year and a 23-year entry read as 35 years of service. The longest entry is the
+    lower bound the documents support."""
+    terms = {k.term for k in rule_keywords(_specialties_only(144, 281))}
+    assert "23+ Years Professional Experience" in terms
+    assert not any("35+" in t or "41+" in t for t in terms)
+
+
+def test_service_length_says_it_is_a_lower_bound_from_one_specialty():
+    kw = next(
+        k
+        for k in rule_keywords(_specialties_only(144, 281))
+        if k.term.endswith("Years Professional Experience")
+    )
+    assert "lower bound" in kw.sources[0]
 
 
 def test_smart_title():

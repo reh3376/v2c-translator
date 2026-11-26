@@ -11,7 +11,11 @@ their contents are discarded.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 
+from rapidfuzz import fuzz
+
+from .canonical import canonical_course
 from .models import Course, Duration, Specialty
 
 # (segment key, label regex). Order doesn't matter; segments are sorted by position.
@@ -137,15 +141,21 @@ RANK_TO_PAY_GRADE: dict[str, str] = {
     "CDR": "O5",
 }
 
+YEARS_UNIT = r"YEARS?|YRS?|YR\(S\)"
+# "OS": OCR lost the M of "MOS" to the replacement character, which clean_ocr() drops.
+MONTHS_UNIT = r"MONTHS?|MO\(S\)|MOS|MO|OS"
 DURATION_RE = re.compile(
-    r"(?:(?P<y>\d{1,2})\s*(?:YEARS?|YRS?|YR\(S\))\.?\s*,?\s*(?:AND\s*)?)?"
-    r"(?:(?P<m>\d{1,2})\s*(?:MONTHS?|MOS?|MO\(S\))\b\.?)?"
+    rf"(?:(?P<y>\d{{1,2}})\s*(?:{YEARS_UNIT})\.?\s*,?\s*(?:AND\s*)?)?"
+    rf"(?:(?P<m>\d{{1,2}})\s*(?:{MONTHS_UNIT})\b\.?)?"
 )
 # Same as DURATION_RE but never matches the empty string; safe for .sub().
 DURATION_STRICT_RE = re.compile(
-    r"\d{1,2}\s*(?:YEARS?|YRS?|YR\(S\))\.?(?:\s*,?\s*(?:AND\s*)?\d{1,2}\s*"
-    r"(?:MONTHS?|MOS?|MO\(S\))\b\.?)?|\d{1,2}\s*(?:MONTHS?|MOS?|MO\(S\))\b\.?"
+    rf"\d{{1,2}}\s*(?:{YEARS_UNIT})\.?(?:\s*,?\s*(?:AND\s*)?\d{{1,2}}\s*"
+    rf"(?:{MONTHS_UNIT})\b\.?)?|\d{{1,2}}\s*(?:{MONTHS_UNIT})\b\.?"
 )
+# Every word a duration is written out of, so a line that holds nothing else is a piece of
+# one: a block's box can wrap an entry anywhere, "23 YRS 5" and "MOS" included.
+TIME_WORDS_RE = re.compile(rf"\d{{1,2}}|{YEARS_UNIT}|{MONTHS_UNIT}|AND")
 # Longer than any career; a larger YEAR(S) value in block 12 is a misread, not a duration.
 MAX_SERVICE_YEARS = 45
 PAY_GRADE_RE = re.compile(r"\b([EOW])\s*-?\s*0?(10|[1-9])\b")
@@ -154,9 +164,36 @@ TRIPLE_RE = re.compile(r"\b(\d{1,4})\s+(\d{1,2})\s+(\d{1,2})\b")
 NOTHING_FOLLOWS_RE = re.compile(r"/*\s*NOTHING\s*FOLLOWS\s*/*")
 LONG_PAREN_RE = re.compile(r"\([^()]{25,}\)", re.DOTALL)
 TRAILING_BLOCK_NUM_RE = re.compile(r"[\s|]*\b\d{1,2}\s*[A-J]?\s*\.?\s*$")
+# A character the source could not read, and the control characters a text layer may carry.
+# Dropped rather than kept, so one unreadable letter does not make its word unreadable.
+UNREADABLE_RE = re.compile(r"[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]+")
+# The "//" the form puts between entries, as OCR reads it when it cannot tell the strokes
+# apart: "I I", "/ /", "| |", "1 1". Only between entries, never inside a word, so a mark
+# pair needs whitespace around it and text either side of it.
+ENTRY_SEPARATOR_RE = re.compile(r"(?<=[A-Z0-9)\].,])\s+[I1|/]\s+[I1|/]\s+(?=[A-Z0-9])", re.I)
+# The form's own end-of-list marker, and the markers that send the reader to another block.
+# Neither is a value. Matched on letters alone, because OCR garbles both.
+NOTHING_FOLLOWS = "NOTHINGFOLLOWS"
+MARKER_MATCH = 85
+CONTINUATION_RE = re.compile(r"^(?:CONT|SEE)[A-Z]{0,8}?(?:BL|REMARK)")
 
 
 # --------------------------------------------------------------------------- helpers
+
+
+def clean_ocr(text: str) -> str:
+    """`text` without the characters its source could not read."""
+    return UNREADABLE_RE.sub("", text)
+
+
+def _is_marker(entry: str) -> bool:
+    """Whether an entry is the form's "NOTHING FOLLOWS" or a "continued in block 18"
+    marker rather than a value, however OCR spelled it."""
+    letters = re.sub(r"[^A-Z]", "", entry.upper())
+    return (
+        fuzz.ratio(letters, NOTHING_FOLLOWS) >= MARKER_MATCH
+        or CONTINUATION_RE.match(letters) is not None
+    )
 
 
 def detect_version(text: str) -> str:
@@ -234,41 +271,71 @@ def parse_duration(s: str | None) -> Duration | None:
 
 
 def _split_entries(seg: str, *, allow_commas: bool = False) -> list[str]:
-    seg = NOTHING_FOLLOWS_RE.sub(" ", seg)
-    if "//" in seg or ";" in seg:
-        parts = re.split(r"//|;", seg)
-    elif "\n" in seg.strip():
-        parts = seg.splitlines()
-    elif allow_commas:
+    """One block's text as its entries: whatever the form put between them ("//", however
+    OCR read it, or ";"), and the line breaks the block's box wrapped them on."""
+    seg = ENTRY_SEPARATOR_RE.sub("//", NOTHING_FOLLOWS_RE.sub(" ", clean_ocr(seg)))
+    parts = re.split(r"//|;|\n", seg)
+    if len(parts) == 1 and allow_commas:
         parts = re.split(r",(?![^()]*\))", seg)
-    else:
-        parts = [seg]
     out = []
     for p in parts:
         p = re.sub(r"\s+", " ", p).strip(" ,.-/")
-        if len(re.sub(r"[^A-Z0-9]", "", p.upper())) >= 3 and p.upper() not in {"NONE", "N/A"}:
+        if len(re.sub(r"[^A-Z0-9]", "", p.upper())) < 3 or p.upper() in {"NONE", "N/A"}:
+            continue
+        if not _is_marker(p):
             out.append(p)
     return out
+
+
+def _run_on_entries(part: str) -> list[str]:
+    """`part` cut after each duration it holds, for a block that puts nothing between its
+    entries: "0311 RIFLEMAN 3 YRS 0 MOS 3531 MOTOR VEHICLE OPERATOR 1 YR 6 MOS"."""
+    out: list[str] = []
+    last = 0
+    for m in DURATION_RE.finditer(part):
+        if (m.group("y") or m.group("m")) and m.end() > last:
+            out.append(part[last : m.end()])
+            last = m.end()
+    return [*out, part[last:]]
+
+
+def _is_time_only(part: str) -> bool:
+    """Whether `part` is a time and nothing else: no entry, only a piece of one's duration."""
+    return not re.sub(r"[^A-Z0-9]", "", TIME_WORDS_RE.sub("", part.upper()))
+
+
+def _joined_entries(entries: Iterable[str]) -> list[str]:
+    """`entries` with each wrapped tail joined back to the entry it came from. A block's box
+    wraps an entry wherever the line runs out, so a line can hold the end of the entry
+    above's time and nothing else: "11 YRS" then "2 MOS", or "23 YRS 5" then "MOS"."""
+    raws: list[str] = []
+    for entry in entries:
+        raws.append(entry)
+        # Fold a trailing time back while that lengthens the time of the entry before it,
+        # or while it is only being gathered out of the pieces the wrap left.
+        while len(raws) >= 2 and _is_time_only(raws[-1]):
+            joined = f"{raws[-2]} {raws[-1]}"
+            if not _is_time_only(raws[-2]) and parse_duration(joined) == parse_duration(raws[-2]):
+                break
+            raws[-2:] = [joined]
+    return raws
 
 
 def parse_specialties(seg: str | None) -> list[Specialty]:
     if not seg:
         return []
-    seg = NOTHING_FOLLOWS_RE.sub(" ", seg.upper())
-    # Entries usually end with a duration ("4 YRS 2 MOS"); split right after each one.
-    chunks: list[str] = []
-    last = 0
-    for m in DURATION_RE.finditer(seg):
-        if (m.group("y") or m.group("m")) and m.end() > last:
-            chunks.append(seg[last : m.end()])
-            last = m.end()
-    chunks.append(seg[last:])
-    entries: list[Specialty] = []
-    for chunk in chunks:
-        for part in _split_entries(chunk):
-            dur = parse_duration(part)
-            entries.append(Specialty(raw=part, months=dur.total_months if dur else None))
-    # Drop fragments that are only a duration (e.g. a wrapped line).
+    split = (
+        entry.strip()
+        for part in _split_entries(seg.upper())
+        for entry in _run_on_entries(part)
+        if entry.strip()
+    )
+    entries = [
+        Specialty(raw=raw, months=dur.total_months if (dur := parse_duration(raw)) else None)
+        for raw in _joined_entries(split)
+        if not _is_time_only(raw)
+    ]
+    # Drop what is no entry at all: a stray number, or a duration with nothing to time.
     return [e for e in entries if re.search(r"[A-Z]{2}", DURATION_STRICT_RE.sub("", e.raw))]
 
 
@@ -291,7 +358,7 @@ def parse_courses(seg: str | None) -> list[Course]:
             " ",
             u,
         )
-        title = re.sub(r"\s+", " ", title).strip(" ,.-()/")
+        title = canonical_course(re.sub(r"\s+", " ", title).strip(" ,.-()/"))
         if len(title) >= 3:
             courses.append(
                 Course(raw=part, title=title, weeks=weeks, year=int(years[-1]) if years else None)

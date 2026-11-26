@@ -85,8 +85,9 @@ COURSE_RULES: list[tuple[str, list[str]]] = [
         ["Leadership Training", "Team Supervision", "Performance Counseling"],
     ),
     (
-        r"ADVANCED LEADER|\bALC\b|ANCOC|BNCOC|SENIOR LEADER COURSE|\bSLC\b|NCO ACADEMY|"
-        r"SNCO ACADEMY|SERGEANTS COURSE|CHIEF PETTY OFFICER|MASTER LEADER|SERGEANTS MAJOR|"
+        r"ADVANCED LEADER|\bALC\b|ANCOC|BNCOC|SENIOR LEADER COURSE|\bSLC\b|"
+        r"(?:NCO|NONCOMMISSIONED OFFICER) ACADEMY|SNCO ACADEMY|NONCOMMISSIONED OFFICER COURSE|"
+        r"SERGEANTS COURSE|CHIEF PETTY OFFICER|MASTER LEADER|SERGEANTS MAJOR|"
         r"CAREER COURSE|STAFF COLLEGE|COMMAND AND GENERAL|WAR COLLEGE",
         ["Advanced Leadership", "Operations Management", "Organizational Planning"],
     ),
@@ -172,7 +173,10 @@ PERFORMANCE_AWARD_RE = re.compile(
 )
 AWARD_RULES: list[tuple[str, list[str]]] = [
     (r"GOOD CONDUCT", ["Dependability"]),
-    (r"NCO PROFESSIONAL DEVELOPMENT|\bNCOPDR\b", ["Professional Development"]),
+    (
+        r"(?:NCO|NONCOMMISSIONED OFFICER) PROFESSIONAL DEVELOPMENT|\bNCOPDR\b",
+        ["Professional Development"],
+    ),
     (
         r"CAMPAIGN|EXPEDITIONARY MEDAL|OVERSEAS SERVICE|INHERENT RESOLVE|KOREA DEFENSE|\bNATO\b|"
         r"KOSOVO",
@@ -317,11 +321,15 @@ def rule_keywords(profile: Profile) -> list[Keyword]:
         _add(out, "experience", f"U.S. {ctx.branch} Veteran", 1.0, ctx.source.locator)
     time = profile.service_time
     months = sum(time[k].total_months for k in ("net_active", "prior_active") if k in time)
+    source = "record of service"
     if not months:
-        months = sum(o.value.months or 0 for o in profile.occupations)
+        # The record of service was not read. Specialty periods overlap, because one
+        # soldier's specialty changes as the career runs, so they are never summed: the
+        # longest single entry is the length of service the documents do support.
+        months = max((o.value.months or 0 for o in profile.occupations), default=0)
+        source = "longest time in one specialty (a lower bound: no record of service read)"
     if months >= 12:
-        yrs = months // 12
-        _add(out, "experience", f"{yrs}+ Years Professional Experience", 0.9, "record of service")
+        _add(out, "experience", f"{months // 12}+ Years Professional Experience", 0.9, source)
     if "foreign" in time and not time["foreign"].is_zero:
         _add(out, "experience", "International Operations", 0.6, "foreign service time")
         _add(out, "experience", "Cross-Cultural Collaboration", 0.5, "foreign service time")

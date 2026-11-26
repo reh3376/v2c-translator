@@ -287,9 +287,11 @@ class _Text:
 
 
 def _wrap(text: str, font: str, size: float, width: float) -> list[str]:
+    """`text` as the lines it is drawn on: a newline breaks the line where the caller asks,
+    as a scan's own lines fall, and whatever is left over wraps on `width`."""
     from reportlab.lib.utils import simpleSplit
 
-    return simpleSplit(text, font, size, width)
+    return [line for piece in text.split("\n") for line in simpleSplit(piece, font, size, width)]
 
 
 def _texts(
@@ -300,6 +302,8 @@ def _texts(
     omit: Collection[str] = (),
     cells: Mapping[tuple[str, int], str] | None = None,
     blocks: Mapping[str, str] = {},
+    labels: Mapping[str, str] = {},
+    label_on_value_line: Collection[str] = (),
 ) -> list[_Text]:
     from reportlab.pdfbase.pdfmetrics import stringWidth
 
@@ -312,20 +316,30 @@ def _texts(
         _Text(776, 36, "DD FORM 214, AUG 2009   PREVIOUS EDITION IS OBSOLETE.", "Helvetica", 6)
     )
     for box in BOXES:
-        label = NOISY_LABELS.get(box.label, box.label) if noisy else box.label
         number = box.label.split(".")[0]
+        label = labels.get(number) or (
+            NOISY_LABELS.get(box.label, box.label) if noisy else box.label
+        )
         width = (COLUMNS[0][1] if box.label.startswith("12.") else box.x1) - box.x0 - 4
         lines = list(OVERLAP_LABELS[number]) if overlap and number in OVERLAP_LABELS else []
         lines = lines or _wrap(label, LABEL_FONT, LABEL_SIZE, width)
+        value = blocks.get(number, box.value)
+        value_lines = _wrap(value, VALUE_FONT, VALUE_SIZE, box.x1 - box.x0 - 8)
+        # The label's last line and the value's first as one text run, the way OCR reads a
+        # small printed label and the typed line under it as one line of the page.
+        run_on = number in label_on_value_line and bool(lines) and bool(value_lines)
         y = box.top + 7
-        for line in lines:
+        for i, line in enumerate(lines):
             if number not in omit:
-                out.append(_Text(y, box.x0 + 2, line, LABEL_FONT, LABEL_SIZE))
+                then = None
+                if run_on and i == len(lines) - 1:
+                    gap = stringWidth(line, LABEL_FONT, LABEL_SIZE) + 4
+                    then = (box.x0 + 2 + gap, value_lines[0])
+                out.append(_Text(y, box.x0 + 2, line, LABEL_FONT, LABEL_SIZE, then))
             y += 7
         # On a scan the typed value sits on the printed label's last line, not under it.
-        y += -8.5 if overlap else 4
-        value = blocks.get(number, box.value)
-        for line in _wrap(value, VALUE_FONT, VALUE_SIZE, box.x1 - box.x0 - 8):
+        y += 4 if run_on else (-8.5 if overlap else 4)
+        for line in value_lines[1:] if run_on else value_lines:
             out.append(_Text(y + 3, box.x0 + 4, line, VALUE_FONT, VALUE_SIZE))
             y += 11
     for name, x0, x1 in COLUMNS:
@@ -361,6 +375,8 @@ def write_text_pdf(
     omit: Collection[str] = (),
     cells: Mapping[tuple[str, int], str] | None = None,
     blocks: Mapping[str, str] = {},
+    labels: Mapping[str, str] = {},
+    label_on_value_line: Collection[str] = (),
 ) -> Path:
     """The form as a PDF with a text layer, drawn in row-major order across the page.
 
@@ -370,7 +386,11 @@ def write_text_pdf(
     text layer leaves them, with every value on its label's own line and block 12's row
     labels off the values they name (see OVERLAP_SHIFT). `field` adds a fillable form field
     that holds that value. `omit` leaves out the printed labels of those blocks ("5", "7a"),
-    the way OCR loses a label, and keeps their values.
+    the way OCR loses a label, and keeps their values. `labels` draws those blocks' printed
+    labels as the given text, the way OCR garbles a label; `blocks` fills those blocks in
+    with the given value, and a newline in either breaks the line there.
+    `label_on_value_line` writes those blocks' last label line and first value line as one
+    text run, the way a scan's OCR layer reads a small label and the line under it as one.
     """
     from reportlab.pdfgen.canvas import Canvas
 
@@ -385,7 +405,16 @@ def write_text_pdf(
         c.line(x0, PAGE_H - 182, x0, PAGE_H - (GRID_TOP + len(RECORD) * ROW_PITCH))
     if field:
         c.acroForm.textfield(name="remarks", value=field, x=40, y=PAGE_H - 550, borderWidth=0)
-    drawn = _texts(noisy=noisy, overlap=overlap, title=title, omit=omit, cells=cells, blocks=blocks)
+    drawn = _texts(
+        noisy=noisy,
+        overlap=overlap,
+        title=title,
+        omit=omit,
+        cells=cells,
+        blocks=blocks,
+        labels=labels,
+        label_on_value_line=label_on_value_line,
+    )
     for t in sorted(drawn, key=lambda t: (t.top, t.x)):
         c.setFont(t.font, t.size)
         if t.then:

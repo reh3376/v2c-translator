@@ -45,10 +45,15 @@ them.
 4. Open `layout.txt` in a text editor. Expected: the first line says "geometry only;
 	contains no text from your document". Every line after the header holds only these:
 	- words of ours: `source`, `page`, `label`, `missing`, `line`, `run`, `rule`, `block`,
-	`cell`, `status`, `bbox` and the like;
+	`cell`, `status`, `bbox`, `reread`, `crop`, `zoom`, `accepted`, `refused` and the like;
 	- ids of ours, such as `L4a`, `L12c`, `B4a` and `B12c`;
 	- numbers with one decimal place, which are positions on the page, and small counts;
 	- shape codes, such as `A5` (five letters) or `D8` (eight digits).
+
+	A `reread` line says that a cell of block 12 was cut out of the page image and read
+	again: the box it was cut at, in the image's pixels, how far it was magnified, the shape
+	of what came back, and whether that reading was used. It holds no character of the
+	cell.
 
 	Search the file for your last name, your SSN and your home town. Expected: none of
 	them is found.

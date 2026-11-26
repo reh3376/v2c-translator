@@ -7,6 +7,7 @@ scanned form's OCR layer does. Expected values come from what the generator draw
 
 import importlib.util
 import json
+import sys
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -19,7 +20,7 @@ from dd214kw.cli import main
 from dd214kw.evidence import SourceFactory
 from dd214kw.extract import Content, load_text
 from dd214kw.extractors import Dd214, read
-from dd214kw.extractors.dd214_layout import NOT_READ, Status, read_form
+from dd214kw.extractors.dd214_layout import NOT_READ, OCR_TOOLS_MISSING, Status, read_form
 from dd214kw.index import DEFAULT_INDEX
 from dd214kw.models import Duration
 from dd214kw.resolve import resolve
@@ -181,6 +182,60 @@ def test_a_cell_the_text_layer_garbled_is_read_again_from_the_page(scan_text_pdf
     assert [n for n in doc.notes if "12c" in n] == []
 
 
+def test_zero_look_alikes_in_a_block_12_cell_read_as_zeros(tmp_path):
+    """The shapes the user's own text layer left in block 12: a zero read as "()", "Q" or
+    "D", and "00" read as "NO". A row of zeros is a value the form prints, so a row left in
+    these shapes must read as zero rather than as a row that could not be read."""
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf",
+        cells={
+            ("d", 0): "0O0D",
+            ("d", 1): "NO",
+            ("d", 2): "QO",
+            ("e", 0): "0Q0O",
+            ("e", 1): "()()",
+            ("e", 2): "D0",
+        },
+    )
+    doc, facts = read(pdf)
+    assert resolve(facts).service_time["prior_active"] == Duration(0, 0, 0)
+    assert [n for n in doc.notes if "12d" in n or "12e" in n] == []
+
+
+def test_a_date_whose_year_no_one_served_in_is_not_a_date(tmp_path):
+    """Repairing a cell can make digits that read as a date and are still a misread: "()()"
+    for "20" leaves block 12b in the year 20. A row like that is refused, not used."""
+    pdf = form.write_text_pdf(tmp_path / "dd214.pdf", cells={("b", 0): "()()20"})
+    doc, facts = read(pdf)
+    assert resolve(facts).context.as_of is None
+    assert [n for n in doc.notes if n.startswith("The value of block 12b")] == [
+        "The value of block 12b (separation date this period) could not be read; not used."
+    ]
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_a_cell_with_no_words_at_all_is_read_from_the_page(scan_png, tmp_path):
+    """Block 12d's days are missing from the user's text layer altogether. The row's other
+    cells still say where that cell sits, so it is cut from the page image and read."""
+    pdf = form.write_scan_pdf(scan_png, tmp_path / "scan-text.pdf", cells={("d", 2): ""})
+    doc, facts = read(pdf)
+    assert resolve(facts).service_time["prior_active"] == Duration(0, 0, 0)
+    assert [n for n in doc.notes if "12d" in n] == []
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_a_cell_the_ocr_tools_cannot_re_read_says_what_would_read_it(scan_text_pdf, monkeypatch):
+    """Without the OCR tools there is no second reading of a cell the text layer garbled.
+    The note says why once, and what to install, instead of only that a value was not
+    used."""
+    monkeypatch.setitem(sys.modules, "pytesseract", None)
+    doc, facts = read(scan_text_pdf)
+    assert "net_active" not in resolve(facts).service_time
+    assert [n for n in doc.notes if n == OCR_TOOLS_MISSING] == [OCR_TOOLS_MISSING]
+
+
 def test_a_net_active_service_the_dates_contradict_is_noted_not_corrected(tmp_path):
     """Block 12c is the time between 12a and 12b, counted inclusively. Time lost (block 29)
     is withheld, so a figure that does not follow from the dates is reported, not changed."""
@@ -205,6 +260,38 @@ def test_an_entry_split_across_lines_stays_one_entry(tmp_path):
         },
     )
     assert _occupations(resolve(read(pdf)[1])) == SPECIALTIES
+
+
+# Block 11's printed label as a scanner's OCR left it, its last words garbled. The typed
+# value sits on this line too (see the overlap fixture), so the label's tail runs into the
+# first entry's title.
+GARBLED_LABEL_11 = (
+    "11. PRIMARY SPECIALTY (List number, title and years and months in specialty. List\n"
+    "additional specialty numbers and titles involving periods of\nONE OR MO,E S/RS!"
+)
+# One entry wrapping between its years and its months, an entry separator OCR read as
+# "I I", and a misread "NOTHING FOLLOWS". The codes, titles and times are invented.
+WRAPPED_SPECIALTIES = (
+    "25U60 2B SI GI NT SGT/ CHIEF - 11 YRS\n"
+    "2 MOS I I 25B4L NETWORK SYSTEMS OPERATOR - 23 YRS 5 MOS I I NOTHTNG FOLLOWS"
+)
+
+
+def test_block_11s_wrapped_label_does_not_reach_the_first_specialty(tmp_path):
+    """The reported failure. The end of block 11's printed label came out as part of the
+    first entry's title; the entry wrapped between "11 YRS" and "2 MOS", so its months
+    began the next entry's title instead of counting; and "NOTHING FOLLOWS" became an
+    entry of its own."""
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf",
+        labels={"11": GARBLED_LABEL_11},
+        blocks={"11": WRAPPED_SPECIALTIES},
+        label_on_value_line=("11",),
+    )
+    assert _occupations(resolve(read(pdf)[1])) == [
+        ("25U60 2B SI GI NT SGT/ CHIEF", 134),
+        ("25B4L NETWORK SYSTEMS OPERATOR", 281),
+    ]
 
 
 def test_unreadable_cells_are_left_out_not_guessed(noisy_pdf):

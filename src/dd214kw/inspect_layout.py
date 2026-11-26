@@ -8,7 +8,9 @@ prints the geometry alone:
 - every other word as its box and a shape code (`A5` is five letters);
 - the text lines the PDF's text layer or OCR holds, as boxes with word counts;
 - the page's ruled lines, from the PDF's drawing or found in the scanned image;
-- the boxes the layout reader drew, and what it did with each, with no values.
+- the boxes the layout reader drew, and what it did with each, with no values;
+- for a block 12 cell it read again off the page image, the box it cut, how far it
+  magnified it, and the shape of what came back.
 
 `write_png()` draws the same geometry as rectangles and lines on a blank canvas. It is
 never given the page image.
@@ -34,6 +36,7 @@ from .extractors.dd214_layout import (
     _heading,
     _reading_lines,
     read_form,
+    shape,
 )
 
 HEADER = (
@@ -186,20 +189,15 @@ def _reader(form: Form) -> list[str]:
             if c.words:
                 line += f" shape {shape(''.join(w.text for w in c.words))}"
         out.append(line)
+        if r := c.reread:
+            # What a second reading of the cell off the page image returned, as geometry
+            # and a shape code: enough to tell why a cell failed, and no character of it.
+            out.append(
+                f"cell B12{c.row} {COLUMN_IDS[c.column]} reread crop {_box(r.crop)} "
+                f"zoom {r.zoom:.1f} shape {r.shape} "
+                f"{'accepted' if r.accepted else 'refused'}"
+            )
     return out
-
-
-def shape(text: str) -> str:
-    """A word's shape code: its kind of characters and its length, never a character."""
-    if all(c.isdigit() for c in text):
-        kind = "D"
-    elif all(c.isalpha() for c in text):
-        kind = "A"
-    elif not any(c.isalnum() for c in text):
-        kind = "P"
-    else:
-        kind = "M"
-    return f"{kind}{len(text)}"
 
 
 def _n(v: float) -> str:

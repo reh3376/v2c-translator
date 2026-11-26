@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterable, Mapping
 from datetime import date
 from typing import Any
 
+from ..canonical import canonical_award
 from ..evidence import (
     Award,
     DocType,
@@ -83,14 +84,16 @@ def _award_count(s: str) -> int:
 
 # The award-count notation the form appends to a name: "(3)", "(2ND AWARD)", "W/ 1 OAK LEAF
 # CLUSTER", "W/ 2 OLC". The count lives in Award.count, so the name is the award's identity.
+# A bracket OCR dropped, as in "3RD AWARD)" and "(4TH AWARD", still leaves the notation one.
 AWARD_COUNT_SUFFIX_RE = re.compile(
-    r"\s*\(\s*\d+(?:ST|ND|RD|TH)?(?:\s*(?:AWARD|AWD))?\s*\)\s*$"
+    r"\s*[(\[]?\s*\d+(?:ST|ND|RD|TH)?\s*(?:AWARD|AWD)\s*[)\]]?\s*$"
+    r"|\s*[(\[]\s*\d+(?:ST|ND|RD|TH)?\s*[)\]]?\s*$"
     r"|\s*(?:W/|WITH)\s*\d+\s*(?:OAK\s*LEAF\s*CLUSTERS?|OLCS?)\s*$"
 )
 
 
 def _award_name(s: str) -> str:
-    return AWARD_COUNT_SUFFIX_RE.sub("", s) or s
+    return canonical_award(AWARD_COUNT_SUFFIX_RE.sub("", s) or s)
 
 
 def _occupation_title(raw: str) -> str:

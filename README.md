@@ -424,9 +424,26 @@ text instead of block number**:
 
 The layout is detected from the form title and labels ("Certificate of Release or
 Discharge" vs "Certificate of Uniformed Service", "Social Security Number" vs "DoD ID
-Number"). Long instruction text in parentheses is stripped before segmentation. Specialty
-entries are split on the duration that ends each entry ("6 YRS 4 MOS"), on `//`
-separators, or on newlines.
+Number"). Long instruction text in parentheses is stripped before segmentation.
+
+A block's entries are split on what the form puts between them: `//`, which OCR may read as
+`/ /`, `I I`, `| |` or `1 1`; `;`; and the line breaks the block's box wrapped them on. A
+line that holds only part of an entry's time is joined back to that entry, so "11 YRS" and
+"2 MOS" either side of a wrap are one time in specialty. Entries with nothing between them
+are split on the duration that ends each one ("6 YRS 4 MOS"). The form's own `NOTHING
+FOLLOWS` and its `CONT IN BLOCK 18` markers are matched on letters alone, so a misread
+spelling of either is still dropped, and characters the source could not read are dropped
+before anything is parsed.
+
+Award and course names are then read as the official names they stand for, by fuzzy match
+against `data/awards.csv` and `data/courses.csv`: the services' decorations, medals, badges
+and ribbons, the courses a form lists, and the abbreviations a form may write instead
+(`ACM`, `NCOPDR`, `ANCOC`). That is how `ARMY COMMEND A TL ON MEDAL` off a scan reads as
+the Army Commendation Medal. Below a conservative floor the document's own text stands, and
+a name that says more than the official one keeps its text too, because "leading petty
+officer leadership course" is not the petty officer leadership course. An award's count is
+taken from `(2ND AWARD)`, `3RD AWARD)` or `(4TH AWARD`, and what it was given with
+(`WITH RIFLE BAR`) is kept as the document words it.
 
 #### Reading a PDF by block position
 
@@ -445,7 +462,12 @@ So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position ins
    are matched, so a label that wraps onto a second line, or whose line also holds the
    label beside it, is still recognised. Each printed word belongs to at most one label.
 2. It boxes each block from its label to the next label on the right and down to the next
-   row of labels, then takes the words inside the box, keeping their source's lines.
+   row of labels, then takes the words inside the box, keeping their source's lines. The
+   box's own label lines are dropped, and where the label's last line and the first typed
+   line were read as one line, as a scan leaves them, the label's tail is taken off the
+   front of that line: left on, `...periods of one or more years.)` reads as part of the
+   first specialty's title. How much of the line is label is measured against the label's
+   end, because the value follows the tail.
 3. It reads block 12 as a grid. The `YEAR(S)`, `MONTH(S)` and `DAY(S)` headings give the
    columns, and each column's own values give the rows: a column with a value for every
    row is read in order, top to bottom, and a column OCR read fewer values in has its rows
@@ -453,14 +475,20 @@ So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position ins
    scan they sit further off the values they name than the rows are apart, and some are
    lost, so a box drawn around a label takes the row above or below. A row whose values
    do not then line up is refused rather than reported as another row's service.
-4. In the number cells only, it repairs OCR's usual confusions: `O` for 0, `l`, `I` or `|`
-   for 1, `S` for 5, and stray punctuation. A cell that still does not hold its 4, 2 or 2
-   digits is cut out of the page image, where the file is a scan, and read again with
-   tesseract as digits alone; a reading that is still not digits leaves the row out with a
-   note. It does not guess. Where rows 12a, 12b and 12c all read, it checks the net active
-   service against the period between the two dates, counted inclusively as the form
-   counts it, and notes a difference of more than three days. Time lost (block 29) is
-   withheld from the reader, so that is a note and never a correction.
+   Every cell of a row is boxed from the row's own band, not from its own words, so a cell
+   the text layer left empty still has the box the page image can be cut at.
+4. In the number cells only, it repairs OCR's usual confusions: `O`, `o`, `Q`, `D` and `()`
+   for 0, `N` for a 0 in a two-digit cell (the form's `00` run together as `NO`), `l`, `I`
+   or `|` for 1, `S` for 5, and stray punctuation. A cell that still does not hold its 4, 2
+   or 2 digits is cut out of the page image, where the file is a scan, and read again with
+   tesseract as digits alone: in sparse-text mode first, then with a wider margin in black
+   and white, then magnified in single-line mode. A reading that is still not digits leaves
+   the row out with a note, and where the OCR tools are not installed one note says that
+   installing them would let those cells be read. It does not guess. Where rows 12a, 12b
+   and 12c all read, it checks the net active service against the period between the two
+   dates, counted inclusively as the form counts it, and notes a difference of more than
+   three days. Time lost (block 29) is withheld from the reader, so that is a note and
+   never a correction.
 5. It writes blocks 2, 4a, 4b, 11, 12, 13 and 14 back out as plain text, one block after
    another, joining a block's lines where its entries are separated by `//` (which OCR may
    write as `/ /`) so an entry that wraps stays one entry. The label-based parser reads
@@ -792,6 +820,7 @@ uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_vmet.t
 | Leadership terms by pay grade | `LEADERSHIP_BY_GRADE` in `rules.py` | — |
 | Course → skill mappings | `COURSE_RULES` in `rules.py` | — |
 | Award → recognition mappings | `AWARD_RULES` / `PERFORMANCE_AWARD_RE` in `rules.py` | — |
+| Official award and course names a garbled name is read as | `src/dd214kw/data/awards.csv`, `src/dd214kw/data/courses.csv` | — (a name or abbreviation that reads as another row's fails `tests/test_parse.py`) |
 | Crosswalk source trust | `LINK_WEIGHTS`, `ANALOG_WEIGHT` in `index.py` | `dd214kw build-index` |
 | Thresholds (title match, importance, occupations per specialty) | constants at the top of `translate.py` | — |
 
@@ -813,8 +842,12 @@ affects the output.
   - An OCR misread that still makes a possible value, such as 15 read as 13, passes
     through. Block 12's dates could catch some of these, but the reader does not check
     them yet.
-  - OCR damage inside a block's text, such as `NOTHING FOLLOWS` read as `NOTHING POLLOWS`,
-    still reaches the parser as an extra entry.
+  - A name too garbled to read as any official award or course keeps the scanner's
+    spelling, so it matches no recognition or skill rule. `ADV NCO CR, TANCOC` off a real
+    scan is one such.
+  - An award or course name the block's box wrapped, where the form put no `//` between
+    its entries, is read as two entries. A time wrapped away from its entry is joined
+    back; a name is not.
   - A fillable PDF with filled form fields is read line by line, as before. Its field
     values have no position on the page.
 
