@@ -7,6 +7,7 @@ scanned form's OCR layer does. Expected values come from what the generator draw
 
 import importlib.util
 import json
+import sys
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -19,7 +20,7 @@ from dd214kw.cli import main
 from dd214kw.evidence import SourceFactory
 from dd214kw.extract import Content, load_text
 from dd214kw.extractors import Dd214, read
-from dd214kw.extractors.dd214_layout import NOT_READ, Status, read_form
+from dd214kw.extractors.dd214_layout import NOT_READ, OCR_TOOLS_MISSING, Status, read_form
 from dd214kw.index import DEFAULT_INDEX
 from dd214kw.models import Duration
 from dd214kw.resolve import resolve
@@ -179,6 +180,49 @@ def test_a_cell_the_text_layer_garbled_is_read_again_from_the_page(scan_text_pdf
     doc, facts = read(scan_text_pdf)
     assert resolve(facts).service_time["net_active"] == NET_ACTIVE
     assert [n for n in doc.notes if "12c" in n] == []
+
+
+def test_zero_look_alikes_in_a_block_12_cell_read_as_zeros(tmp_path):
+    """The shapes the user's own text layer left in block 12: a zero read as "()", "Q" or
+    "D", and "00" read as "NO". A row of zeros is a value the form prints, so a row left in
+    these shapes must read as zero rather than as a row that could not be read."""
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf",
+        cells={
+            ("d", 0): "()()()()",
+            ("d", 1): "NO",
+            ("d", 2): "QO",
+            ("e", 0): "0OQ0",
+            ("e", 1): "DO",
+            ("e", 2): "O()",
+        },
+    )
+    doc, facts = read(pdf)
+    assert resolve(facts).service_time["prior_active"] == Duration(0, 0, 0)
+    assert [n for n in doc.notes if "12d" in n or "12e" in n] == []
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_a_cell_with_no_words_at_all_is_read_from_the_page(scan_png, tmp_path):
+    """Block 12d's days are missing from the user's text layer altogether. The row's other
+    cells still say where that cell sits, so it is cut from the page image and read."""
+    pdf = form.write_scan_pdf(scan_png, tmp_path / "scan-text.pdf", cells={("d", 2): ""})
+    doc, facts = read(pdf)
+    assert resolve(facts).service_time["prior_active"] == Duration(0, 0, 0)
+    assert [n for n in doc.notes if "12d" in n] == []
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_a_cell_the_ocr_tools_cannot_re_read_says_what_would_read_it(scan_text_pdf, monkeypatch):
+    """Without the OCR tools there is no second reading of a cell the text layer garbled.
+    The note says why once, and what to install, instead of only that a value was not
+    used."""
+    monkeypatch.setitem(sys.modules, "pytesseract", None)
+    doc, facts = read(scan_text_pdf)
+    assert "net_active" not in resolve(facts).service_time
+    assert [n for n in doc.notes if n == OCR_TOOLS_MISSING] == [OCR_TOOLS_MISSING]
 
 
 def test_a_net_active_service_the_dates_contradict_is_noted_not_corrected(tmp_path):
