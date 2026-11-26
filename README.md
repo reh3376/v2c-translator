@@ -467,7 +467,11 @@ So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position ins
    line were read as one line, as a scan leaves them, the label's tail is taken off the
    front of that line: left on, `...periods of one or more years.)` reads as part of the
    first specialty's title. How much of the line is label is measured against the label's
-   end, because the value follows the tail.
+   end, because the value follows the tail. The form prints its labels smaller than a
+   value is typed, so a line the size of the block's own label, above the first line typed
+   larger, is label too as soon as it reads like any part of the label. The last line of
+   block 11's long label comes off a scan worn down to a few letters that match little
+   else, and its size is what is left to tell it from the first specialty.
 3. It reads block 12 as a grid. The `YEAR(S)`, `MONTH(S)` and `DAY(S)` headings give the
    columns, and each column's own values give the rows: a column with a value for every
    row is read in order, top to bottom, and a column OCR read fewer values in has its rows
@@ -482,7 +486,15 @@ So for a DD-214 PDF or image, `extractors/dd214_layout.py` reads by position ins
    or `|` for 1, `S` for 5, and stray punctuation. A cell that still does not hold its 4, 2
    or 2 digits is cut out of the page image, where the file is a scan, and read again with
    tesseract as digits alone: in sparse-text mode first, then with a wider margin in black
-   and white, then magnified in single-line mode. A reading that is still not digits leaves
+   and white, then magnified in single-line mode. tesseract reads a crop with one of the
+   form's ruled lines across it as nothing at all, so the next readings whiten the lines
+   first: a row or column of the crop that is dark from end to end is a rule, which a
+   digit never is. The last reading also cuts a band as tall as a line of text, for a row
+   whose words the text layer boxed shorter than the digits on the page, or below their
+   own row. A length-of-service row whose every cell holds zeros and zero misreads and
+   nothing else, however many of them, is read as `0000 00 00` without going to the page
+   at all: the form prints that row of zeros, and no other value can read that way. A row
+   of dates is never read that way. A reading that is still not digits leaves
    the row out with a note, and where the OCR tools are not installed one note says that
    installing them would let those cells be read. It does not guess. Where rows 12a, 12b
    and 12c all read, it checks the net active service against the period between the two

@@ -258,6 +258,12 @@ OVERLAP_LABELS = {
 }
 # A cell no repair table can undo: only the page image behind the text layer holds it.
 SCAN_CELLS = {("c", 0): "Z0012"}
+# How a scanner's text layer can leave block 12: a row's typed values boxed a few points
+# below the row they sit in on the page, so their box spans the ruled line under that row,
+# and a row of no service read as brackets and letters, in cells of the wrong length. The
+# page image is drawn from the clean form, so on the page every digit is still in its row.
+DRIFTED_CELLS = {("b", 0): "Z2020", ("e", 0): "()()", ("e", 1): "OOO", ("e", 2): "()"}
+CELL_DRIFT = {"b": 4.0}
 NOISY_LABELS = {
     "2. DEPARTMENT, COMPONENT AND BRANCH": "2, DEPART MENT, C0MPONENT AND BRANCH",
     "4b. PAY GRADE": "4b. PAY GRAOE",
@@ -272,7 +278,12 @@ def values() -> list[str]:
     """Every value the forms are filled in with, as drawn on the clean and the noisy form:
     the person's data, which nothing that describes the page's layout may echo."""
     cells = [cell for _, _, *row in RECORD for cell in row]
-    drawn = [*NOISY_CELLS.values(), *OVERLAP_CELLS.values(), *SCAN_CELLS.values()]
+    drawn = [
+        *NOISY_CELLS.values(),
+        *OVERLAP_CELLS.values(),
+        *SCAN_CELLS.values(),
+        *DRIFTED_CELLS.values(),
+    ]
     return [box.value for box in BOXES if box.value] + cells + drawn
 
 
@@ -301,9 +312,11 @@ def _texts(
     title: str = TITLE,
     omit: Collection[str] = (),
     cells: Mapping[tuple[str, int], str] | None = None,
+    cell_drift: Mapping[str, float] = {},
     blocks: Mapping[str, str] = {},
     labels: Mapping[str, str] = {},
     label_on_value_line: Collection[str] = (),
+    stray: Mapping[str, tuple[str, float]] = {},
 ) -> list[_Text]:
     from reportlab.pdfbase.pdfmetrics import stringWidth
 
@@ -336,6 +349,12 @@ def _texts(
                     gap = stringWidth(line, LABEL_FONT, LABEL_SIZE) + 4
                     then = (box.x0 + 2 + gap, value_lines[0])
                 out.append(_Text(y, box.x0 + 2, line, LABEL_FONT, LABEL_SIZE, then))
+                # A word of quite another size on the label's last line, the way OCR leaves
+                # one word of a scan's text layer standing across two printed lines.
+                if number in stray and i == len(lines) - 1:
+                    word, size = stray[number]
+                    gap = stringWidth(line, LABEL_FONT, LABEL_SIZE) + 4
+                    out.append(_Text(y, box.x0 + 2 + gap, word, LABEL_FONT, size))
             y += 7
         # On a scan the typed value sits on the printed label's last line, not under it.
         y += 4 if run_on else (-8.5 if overlap else 4)
@@ -355,7 +374,8 @@ def _texts(
             drawn = cells.get((letter, j), cell)
             x = (x0 + x1 - stringWidth(cell, VALUE_FONT, VALUE_SIZE)) / 2
             # Typed values sit a little above the printed label's baseline, as on a scan.
-            out.append(_Text(top + 7.5, x, drawn, VALUE_FONT, VALUE_SIZE))
+            drift = cell_drift.get(letter, 0.0)
+            out.append(_Text(top + 7.5 + drift, x, drawn, VALUE_FONT, VALUE_SIZE))
     if noisy:
         # A line-level OCR layer writes block 11's first line and row 12a's label as one run.
         first = next(t for t in out if t.text.startswith("35M20"))
@@ -377,6 +397,7 @@ def write_text_pdf(
     blocks: Mapping[str, str] = {},
     labels: Mapping[str, str] = {},
     label_on_value_line: Collection[str] = (),
+    stray: Mapping[str, tuple[str, float]] = {},
 ) -> Path:
     """The form as a PDF with a text layer, drawn in row-major order across the page.
 
@@ -391,6 +412,8 @@ def write_text_pdf(
     with the given value, and a newline in either breaks the line there.
     `label_on_value_line` writes those blocks' last label line and first value line as one
     text run, the way a scan's OCR layer reads a small label and the line under it as one.
+    `stray` draws that word at that size on those blocks' last label line, the way OCR
+    leaves one word of its text layer standing across two of the printed lines.
     """
     from reportlab.pdfgen.canvas import Canvas
 
@@ -414,6 +437,7 @@ def write_text_pdf(
         blocks=blocks,
         labels=labels,
         label_on_value_line=label_on_value_line,
+        stray=stray,
     )
     for t in sorted(drawn, key=lambda t: (t.top, t.x)):
         c.setFont(t.font, t.size)
@@ -475,17 +499,23 @@ def write_ocr_pdf(png: Path, out_pdf: Path, *, psm: int = 11) -> Path:
 
 
 def write_scan_pdf(
-    png: Path, out_pdf: Path, *, cells: Mapping[tuple[str, int], str] = SCAN_CELLS
+    png: Path,
+    out_pdf: Path,
+    *,
+    cells: Mapping[tuple[str, int], str] = SCAN_CELLS,
+    cell_drift: Mapping[str, float] = {},
 ) -> Path:
     """`png` as the page, with a text layer over it that garbles `cells`, the way a scanner
     writes a PDF: the image is what the page says, the text layer is one reading of it. The
     image is drawn from the clean form, so a cell garbled here is still right on the page.
+    `cell_drift` boxes those block 12 rows' values that many points below the row they sit
+    in on the page, as a scanner's own text layer boxes them off their row.
     """
     from reportlab.pdfgen.canvas import Canvas
 
     c = Canvas(str(out_pdf), pagesize=(PAGE_W, PAGE_H))
     c.drawImage(str(png), 0, 0, width=PAGE_W, height=PAGE_H)
-    for t in sorted(_texts(cells=cells), key=lambda t: (t.top, t.x)):
+    for t in sorted(_texts(cells=cells, cell_drift=cell_drift), key=lambda t: (t.top, t.x)):
         text = c.beginText(t.x, PAGE_H - t.top)
         text.setTextRenderMode(3)  # invisible: the image is what shows
         text.setFont(t.font, t.size)

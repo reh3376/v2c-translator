@@ -92,6 +92,19 @@ def image_pdf(pdfs, scan_png):
 
 
 @pytest.fixture(scope="module")
+def drifted_pdf(pdfs, clean_pdf):
+    """A scan of 150 dpi, as a plain office scanner makes, whose text layer boxes block
+    12b's values below the row they sit in on the page, so a crop of each of those cells
+    spans the ruled line under that row, and garbles them. See `form.DRIFTED_CELLS`."""
+    if not form.tools_available():
+        pytest.skip("needs the tesseract and pdftoppm binaries")
+    png = form.rasterize(clean_pdf, pdfs / "scan-150.png", dpi=150)
+    return form.write_scan_pdf(
+        png, pdfs / "drifted.pdf", cells=form.DRIFTED_CELLS, cell_drift=form.CELL_DRIFT
+    )
+
+
+@pytest.fixture(scope="module")
 def scan_text_pdf(pdfs, scan_png):
     """The scan's image with a text layer over it, as a scanner's own PDF holds both, and
     with block 12c's years garbled in the text layer alone."""
@@ -202,6 +215,33 @@ def test_zero_look_alikes_in_a_block_12_cell_read_as_zeros(tmp_path):
     assert [n for n in doc.notes if "12d" in n or "12e" in n] == []
 
 
+@needs_tesseract
+@needs_ocr_extra
+def test_a_cell_against_a_ruled_line_is_read_from_the_page(drifted_pdf):
+    """The reported failure on the user's form: re-reading a block 12 cell came back with
+    nothing at all. The cell sits against the rule under its row, and tesseract reads a
+    crop with a line across it as nothing, so the line is whitened before the crop is read.
+    The separation date is what went missing with the row."""
+    doc, facts = read(drifted_pdf)
+    assert resolve(facts).context.as_of == date(2020, 10, 3)
+    assert [n for n in doc.notes if "12b" in n] == []
+    assert {c.status for c in read_form(*_loaded(drifted_pdf)).layout.cells} == {Status.READ}
+
+
+def test_a_length_of_service_of_zeros_in_cells_of_the_wrong_length_reads_as_zero(tmp_path):
+    """Block 12g as the user's text layer left block 12e: every cell holds zeros read as
+    brackets or letters, and none of them holds as many characters as the form prints
+    digits. No other value can read like that, so the row is no service rather than a row
+    that could not be read; the cells are not re-read off the page, and nothing is guessed.
+    """
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf", cells={("g", 0): "()()", ("g", 1): "OOO", ("g", 2): "()"}
+    )
+    doc, facts = read(pdf)
+    assert resolve(facts).service_time["sea"] == Duration(0, 0, 0)
+    assert [n for n in doc.notes if "12g" in n] == []
+
+
 def test_a_date_whose_year_no_one_served_in_is_not_a_date(tmp_path):
     """Repairing a cell can make digits that read as a date and are still a misread: "()()"
     for "20" leaves block 12b in the year 20. A row like that is refused, not used."""
@@ -287,6 +327,31 @@ def test_block_11s_wrapped_label_does_not_reach_the_first_specialty(tmp_path):
         labels={"11": GARBLED_LABEL_11},
         blocks={"11": WRAPPED_SPECIALTIES},
         label_on_value_line=("11",),
+    )
+    assert _occupations(resolve(read(pdf)[1])) == [
+        ("25U60 2B SI GI NT SGT/ CHIEF", 134),
+        ("25B4L NETWORK SYSTEMS OPERATOR", 281),
+    ]
+
+
+# The same label as the user's own form leaves it: its last line stands on its own, above
+# the typed entries, and holds no value. Garbled this far it matches no text of the label,
+# so only its size says it is label. "S/RS!" is drawn over both lines, as OCR left it.
+TALL_WORD_11 = ("S/RS!", 20.0)
+WRAPPED_LABEL_11 = GARBLED_LABEL_11.removesuffix(" " + TALL_WORD_11[0])
+
+
+def test_block_11s_label_line_is_not_read_as_a_specialty(tmp_path):
+    """The reported failure on the user's form. The last line of block 11's printed label
+    came out as the start of the first specialty's title, because the line matches no text
+    of the label any more. It is printed at the label's own size, and the entries under it
+    are typed larger, which is what tells the two apart. The one word of another size on
+    that line, which OCR left standing across both printed lines, goes with the line."""
+    pdf = form.write_text_pdf(
+        tmp_path / "dd214.pdf",
+        labels={"11": WRAPPED_LABEL_11},
+        blocks={"11": WRAPPED_SPECIALTIES},
+        stray={"11": TALL_WORD_11},
     )
     assert _occupations(resolve(read(pdf)[1])) == [
         ("25U60 2B SI GI NT SGT/ CHIEF", 134),
