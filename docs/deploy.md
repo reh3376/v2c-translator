@@ -262,6 +262,10 @@ prints both.
 
 Pages drive all of it, not file size: every scan above is about 1 MB.
 
+Cross-checked on another box: CI's `deploy/smoke.sh` step, on a GitHub runner, reports a
+464 MiB peak for a 5-page scan, where that same step reported 811-851 MiB before this
+branch. The image itself is the size it was, 190 MiB to pull and 553 MiB unpacked.
+
 Two numbers here were four times larger before this branch, and the comparison is in the
 pull request. The two changes behind it: a translation now runs `dd214kw translate`
 **once**, with `-f json+md`, rather than twice in parallel for the two formats, so a
