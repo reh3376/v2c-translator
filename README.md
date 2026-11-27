@@ -816,6 +816,7 @@ v2c-translator/
 ├── deploy/
 │   ├── entrypoint.sh           # picks the bind address from V2C_MODE
 │   ├── smoke.sh                # runs the built image and checks it; CI runs this too
+│   ├── measure.sh              # peak memory and time per translation; where docs/deploy.md's Sizing comes from
 │   ├── verify-behind-caddy.sh  # the image behind a Caddy like the career site's, in a browser
 │   └── behind-caddy/           # the Compose rig and Caddyfiles that script stands up
 ├── pyproject.toml              # uv project; console script `dd214kw`
