@@ -26,8 +26,10 @@ export function register(): void {
   }
   // One line, no secrets, no addresses: what a rollout needs to confirm it got the mode
   // it asked for.
+  const pages = config.limits.maxPages;
   console.log(
     `v2c ${config.mode} mode: ${config.maxConcurrent} concurrent, queue ${config.queueMax}` +
+      `, ${pages === null ? "no page limit" : `${pages} pages per document`}` +
       (config.rateLimit ? `, ${config.rateLimit.max} per ${config.rateLimit.windowMs / 60_000} min per visitor` : ""),
   );
 }

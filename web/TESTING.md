@@ -240,6 +240,16 @@ deploy/smoke.sh v2c:local --scan /tmp/scan.pdf     # also reports peak memory
 deploy/verify-behind-caddy.sh v2c:local
 ```
 
+What a translation costs, if you have changed how a document is read:
+
+```bash
+uv run --extra ocr python tests/make_scan.py --out /tmp/scan6.pdf --pages 6
+deploy/measure.sh v2c:local --case "6-page scan=/tmp/scan6.pdf"   # peak and time, one and two at once
+```
+
+That is where the Sizing table in [`docs/deploy.md`](../docs/deploy.md#sizing) comes from,
+so a change that moves those numbers should bring the table with it.
+
 Then run the image on its own and look at it:
 
 ```bash

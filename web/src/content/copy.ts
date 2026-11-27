@@ -102,6 +102,17 @@ export const HOSTED_ONLY = {
   tooMany: "You've translated several times just now. Try again in a few minutes.",
 } as const;
 
+/**
+ * What the hint under the drop zone adds where a deploy caps the pages in one document,
+ * which hosted mode does by default.
+ *
+ * It is a function and not one of the sentences above because the limit is read from the
+ * environment per request, as `V2C_MAX_PAGES`. `app/page.tsx` hands the result down.
+ */
+export function pagesHint(maxPages: number): string {
+  return `Up to ${maxPages} pages per document.`;
+}
+
 /** Every sentence of one mode's copy, for a test that wants to search the lot. */
 export function sentences(copy: Copy): readonly string[] {
   return [

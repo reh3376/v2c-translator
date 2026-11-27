@@ -57,12 +57,21 @@ function reduce(state: State, action: Action): State {
 }
 
 /**
- * `copy` says what this deploy can honestly promise about the reader's documents, and
- * `siteKey` is the public half of the Turnstile pair when there is a bot check to pass.
- * Both are read from the environment per request by `app/page.tsx` and handed down, so
- * one build serves either mode.
+ * `copy` says what this deploy can honestly promise about the reader's documents,
+ * `siteKey` is the public half of the Turnstile pair when there is a bot check to pass,
+ * and `pages` is the page limit's clause when this deploy caps pages. All three are read
+ * from the environment per request by `app/page.tsx` and handed down, so one build serves
+ * either mode.
  */
-export function Translator({ copy, siteKey }: { copy: Copy; siteKey: string | null }) {
+export function Translator({
+  copy,
+  siteKey,
+  pages = null,
+}: {
+  copy: Copy;
+  siteKey: string | null;
+  pages?: string | null;
+}) {
   const [{ files, phase }, dispatch] = useReducer(reduce, { files: [], phase: { kind: "editing" } });
   const [dragging, setDragging] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -158,7 +167,7 @@ export function Translator({ copy, siteKey }: { copy: Copy; siteKey: string | nu
                 Choose files
               </motion.button>
             </p>
-            <p className="hint">{copy.dropzoneHint}</p>
+            <p className="hint">{pages ? `${copy.dropzoneHint} ${pages}` : copy.dropzoneHint}</p>
             <input
               ref={input}
               type="file"

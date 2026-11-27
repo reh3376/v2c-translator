@@ -53,6 +53,7 @@ changes.
 | Turnstile | no widget, no third-party script | required; refuses to boot without the pair |
 | Per-visitor limit | none | 10 translations / 10 minutes, keyed on `X-Real-IP` |
 | Concurrent translations | 4 | 2, with 8 allowed to wait |
+| Pages per document | no limit | 6, refused before anything is read |
 | Whole request | up to 101 MB | up to 25 MB |
 | `Content-Security-Policy` | this origin only | this origin plus `challenges.cloudflare.com` |
 | What the page promises | the documents stay on this computer | they are sent, read in memory, and deleted |
@@ -68,7 +69,8 @@ build. The image is built with `V2C_BASE_PATH=/v2c`; a build arg changes it.
 | `V2C_MODE` | `local` | `local` or `hosted`. Anything else refuses to start. |
 | `TURNSTILE_SITE_KEY` | — | Public half. Rendered into the page at request time, not inlined at build, so CI can build the image without Cloudflare keys. **Required in hosted mode.** |
 | `TURNSTILE_SECRET_KEY` | — | Private half, used only to verify a token. **Required in hosted mode**, and the process exits if it is missing. |
-| `V2C_MAX_CONCURRENT` | 2 hosted, 4 local | Translations running at once. Each one runs two CLI processes; see [Sizing](#sizing). |
+| `V2C_MAX_CONCURRENT` | 2 hosted, 4 local | Translations running at once. Each one runs one CLI process; see [Sizing](#sizing). |
+| `V2C_MAX_PAGES` | 6 hosted, 0 local | Pages one document may have. A longer one is refused with a message naming the file and the limit, before any page is read. 0 means no limit. |
 | `V2C_QUEUE_MAX` | 8 | Translations allowed to wait. Past this: 503 and a `Retry-After`. 0 means no waiting. |
 | `V2C_RATE_LIMIT` | 10 | Translations per window per visitor. Hosted only. |
 | `V2C_RATE_WINDOW_MINUTES` | 10 | The window. |
@@ -112,6 +114,7 @@ the `app` network, which is also what the box's DOCKER-USER rules assume.
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
       V2C_MAX_CONCURRENT: ${V2C_MAX_CONCURRENT:-2}
+      V2C_MAX_PAGES: ${V2C_MAX_PAGES:-6}
       V2C_QUEUE_MAX: ${V2C_QUEUE_MAX:-8}
       V2C_RATE_LIMIT: ${V2C_RATE_LIMIT:-10}
       V2C_RATE_WINDOW_MINUTES: ${V2C_RATE_WINDOW_MINUTES:-10}
@@ -124,8 +127,8 @@ the `app` network, which is also what the box's DOCKER-USER rules assume.
     tmpfs:
       - /tmp/v2c:rw,noexec,nosuid,size=256m,mode=1777
     # See "Sizing" in the v2c repository's docs/deploy.md. Two concurrent
-    # OCR translations of a multi-page scan is what this number is for.
-    mem_limit: ${V2C_MEM_LIMIT:-3g}
+    # OCR translations of a scan at the page limit is what this number is for.
+    mem_limit: ${V2C_MEM_LIMIT:-1536m}
     cpus: ${V2C_CPUS:-2.0}
     healthcheck:
       test:
@@ -184,9 +187,10 @@ the `app` network, which is also what the box's DOCKER-USER rules assume.
 V2C_IMAGE_TAG=main
 
 # Optional; the compose file's defaults are these.
-# V2C_MEM_LIMIT=3g
+# V2C_MEM_LIMIT=1536m
 # V2C_CPUS=2.0
 # V2C_MAX_CONCURRENT=2
+# V2C_MAX_PAGES=6
 # V2C_QUEUE_MAX=8
 # V2C_RATE_LIMIT=10
 # V2C_RATE_WINDOW_MINUTES=10
@@ -232,42 +236,65 @@ the robot check's box actually appears on the page.**
 
 ## Sizing
 
-Measured in the container on 2026-11-26, with `deploy/smoke.sh`, on the image built from
-this branch. Peak is the container's cgroup peak, so it covers the Node process, both CLI
-processes and tesseract together.
+Measured in the container on 2026-11-27 with `deploy/measure.sh`, on the image built from
+this branch, on a 2-core box with 8 GB, which is the CPU the container gets in production
+(`cpus: 2.0`). The script boots the image fresh for each run, because the kernel's peak
+counter only goes up, and reports the container's own cgroup peak, so each number covers
+the Node process, the CLI and tesseract together. Three runs per case, median first and
+the range where the runs differed. The two image sizes are from `deploy/smoke.sh`, which
+prints both.
 
-| | Peak | |
-| --- | --- | --- |
-| Image, to pull | 190 MiB | the sum of the compressed layers |
-| Image, unpacked on disk | ~555 MiB | what it occupies on the box; 553 on a runner, 556 on a laptop |
-| Idle, just booted | 63 MiB | |
-| One text translation | 72 MiB | |
-| One 1-page 300 dpi scan, OCR'd | 456 MiB | ~4.6 s |
-| Two of those at once | 890 MiB | |
-| One 5-page scan, OCR'd | 811-851 MiB | 35 s; three runs, two local and one on a GitHub runner |
+| | Peak | Time | |
+| --- | --- | --- | --- |
+| Image, to pull | 190 MiB | | the sum of the compressed layers |
+| Image, unpacked on disk | ~555 MiB | | what it occupies on the box; 553 on a runner, 556 on a laptop |
+| Idle, just booted | 48 MiB | | |
+| One text translation | 63 MiB | 0.2 s | |
+| One 1-page 300 dpi scan, OCR'd | 260 MiB | 5.6 s | |
+| Two of those at once | 475 MiB | 6.3 s | |
+| One 5-page scan | 445 MiB | 18.6 s | |
+| Two 5-page scans at once | 816 MiB | 19.9 s | 799-823 MiB |
+| One 6-page scan, at `V2C_MAX_PAGES` | 517 MiB | 26.7 s | 23.7-29.6 s |
+| **Two 6-page scans at once** | **897 MiB** | 24.4 s | 893-909 MiB; the worst case this deploy allows |
+| One 8-page scan | 665 MiB | 29.0 s | what raising the limit would cost |
+| Two 8-page scans at once | 1250 MiB | 28.7 s | |
+| A scan past the page limit | 80 MiB | 0.3 s | 413, before a single page is rendered |
 
-Pages drive it, not file size: the 1-page and the 5-page scan are both about 1 MB.
+Pages drive all of it, not file size: every scan above is about 1 MB.
 
-The two image sizes are both worth knowing and are easy to confuse, which is why
-`deploy/smoke.sh` prints both and labels them. `docker image inspect` reports whichever
-the local daemon holds, and for an image buildkit has just loaded that is the compressed
-total, about a third of the unpacked one.
+Cross-checked on another box: CI's `deploy/smoke.sh` step, on a GitHub runner, reports a
+464 MiB peak for a 5-page scan, where that same step reported 811-851 MiB before this
+branch. The image itself is the size it was, 190 MiB to pull and 553 MiB unpacked.
 
-Two things multiply it. A translation runs `dd214kw translate` **twice in parallel**, once
-for JSON and once for Markdown, so a scan is OCR'd twice. And `V2C_MAX_CONCURRENT`
-translations run at once.
+Two numbers here were four times larger before this branch, and the comparison is in the
+pull request. The two changes behind it: a translation now runs `dd214kw translate`
+**once**, with `-f json+md`, rather than twice in parallel for the two formats, so a
+scanned page is OCR'd once; and OCR runs on **one thread**, because tesseract's OpenMP
+parallelism spent more time spin-waiting than reading (5 pages: 19 s of wall time and 17 s
+of CPU on one thread, 39-58 s of wall time and 38-68 s of CPU on two, for the same words
+out). For the record: on this box, before, one 5-page scan peaked at 827 MiB and took 40 s,
+and two at once peaked at 1586 MiB and hit the 60-second timeout.
 
-What caps it is the 60-second CLI timeout, not the 10 MB file limit: five pages took 35
-seconds, so a translation of about eight pages times out before it finishes. Budget
-roughly 1.2 GB for one translation of a scan that just fits under that timeout.
+**The page limit, and why 6.** A DD-214 is 1-2 pages, a DD-215 one, a VMET 2-4, so six
+covers any one document a visitor should be sending, and an upload still carries up to ten
+files. Six pages is also comfortably inside the 60-second CLI timeout on the slowest box
+measured: 27 seconds alone, 24 seconds with another translation running beside it. Eight
+pages fits the timeout too, at 1250 MiB for two at once, which is a `mem_limit` of 1792m
+for the same headroom; that is the trade if you raise `V2C_MAX_PAGES`.
 
-So, for `V2C_MAX_CONCURRENT=2`: about 2.4 GB of translations, plus up to 200 MB of queued
-request bodies (25 MB × 8 waiting), plus 63 MiB idle. **`mem_limit: 3g`.** On the CPX41's
-16 GB with Ollama capped at 7 GB, that leaves room.
+What the limit does not cap is a request of several multi-page documents: memory is
+bounded by the largest one, because the CLI reads them one after another (two 5-page scans
+in one upload peaked at 505 MiB, the same as one of them), but the time adds up (37.8 s).
+The 60-second timeout is still the backstop there, and it says to try fewer files.
 
-If you would rather give it less, `V2C_MAX_CONCURRENT=1` with `mem_limit: 1536m` is the
-other sensible point. It halves the worst case, and the queue already absorbs bursts; what
-it costs is that a second visitor waits rather than running alongside the first.
+So, for `V2C_MAX_CONCURRENT=2` and `V2C_MAX_PAGES=6`: 897 MiB of translations, plus up to
+200 MB of queued request bodies (25 MB × 8 waiting), plus 48 MiB idle, is about 1.15 GB.
+**`mem_limit: 1536m`**, which leaves a quarter of it spare. On the CPX41's 16 GB with
+Ollama capped at 7 GB, that is a service that now fits twice over.
+
+If you would rather give it less, `V2C_MAX_CONCURRENT=1` with `mem_limit: 1g` is the other
+sensible point. The queue already absorbs bursts; what it costs is that a second visitor
+waits rather than running alongside the first.
 
 ## Rolling out
 
@@ -365,18 +392,8 @@ where the privacy copy says so instead.
 
 Not in this change, deliberately, and in the order worth doing them:
 
-1. **Render both output formats from one read.** The route runs the CLI twice in parallel,
-   for JSON and for Markdown, so a scanned page is OCR'd twice: double the memory and
-   double the time, for one document. A `dd214kw translate` that emits both from one
-   extraction would halve the numbers in [Sizing](#sizing) and let
-   `V2C_MAX_CONCURRENT=2` fit in half the memory. It is a change to the CLI, which is why
-   it is not in a deploy change.
-2. **Teach `deploy/rollout.sh` about this service**, in the career-site repository, so the
+1. **Teach `deploy/rollout.sh` about this service**, in the career-site repository, so the
    steps above stop being a list in a document.
-3. **Cap the pages in a scan.** Today the 60-second timeout is the de facto cap, which
-   means a visitor with a ten-page scan gets a timeout rather than an answer. An explicit
-   page limit with a clear message would be kinder and would make the memory ceiling a
-   number rather than a consequence.
-4. **A second container, behind a shared gate.** Only if the one gets busy. The gate and
+2. **A second container, behind a shared gate.** Only if the one gets busy. The gate and
    the rate limit are both in memory, so two containers would need them somewhere both
    can see.
