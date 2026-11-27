@@ -1,0 +1,57 @@
+# The career site's production Caddy, with the change docs/deploy.md asks for.
+#
+# The site-wide `header` block is copied from career-site/deploy/caddy/Caddyfile.prod,
+# minus the HSTS line, which needs TLS. Two things differ, and both are the point:
+#
+#  1. `handle /v2c*` reverse-proxies to this app's container, setting X-Real-IP from the
+#     real remote address so the per-visitor limit counts visitors and not the proxy.
+#  2. The site's Content-Security-Policy is scoped with a matcher, so it is not sent for
+#     /v2c* and this app's own policy survives.
+#
+# (2) is there because Caddy's `header` directive with a value *replaces* the upstream
+# header rather than adding to it. Measured in this rig on 2026-11-26: without the
+# matcher, exactly one policy reaches the browser and it is the site's, and the app's is
+# discarded. The site's policy happens to allow everything this app loads today, because
+# the career site uses Turnstile too, so the page would work — and would break silently
+# the day that site stopped using Turnstile and tightened its policy. The matcher makes
+# this app's requirements this app's business.
+#
+# Caddyfile.site-policy-only is the same file without (2), kept so the rig can show what
+# the other arrangement does.
+
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), midi=(), sync-xhr=()"
+		X-Frame-Options "DENY"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		X-Permitted-Cross-Domain-Policies "none"
+		-Server
+	}
+
+	# The site's policy, everywhere but /v2c, which sends its own.
+	@site not path /v2c /v2c/*
+	header @site Content-Security-Policy "default-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com https://api.github.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://api.github.com https://api.pwnedpasswords.com https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+	# `header_up X-Real-IP {remote_host}` replaces rather than appends, which is the
+	# point: a client can send its own, so the app must read an address this proxy set
+	# and nothing else.
+	handle /v2c* {
+		reverse_proxy v2c:3009 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		respond "the rest of the career site" 200
+	}
+}

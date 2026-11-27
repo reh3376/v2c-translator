@@ -313,6 +313,18 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * The Turnstile widget, in hosted mode only. Cloudflare draws the box itself, inside an
+ * iframe whose size it owns, so this reserves the height instead of styling anything in
+ * it: without the reservation the buttons below jump down when the widget arrives.
+ */
+.robot-check {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.5rem;
+  min-height: 5.75rem;
+}
+
 .actions {
   margin-top: 1.5rem;
   display: flex;

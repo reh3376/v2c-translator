@@ -103,3 +103,92 @@ jobs:
       - run: pnpm test
       - name: End-to-end test in the runner's Chrome
         run: pnpm e2e
+      - name: End-to-end test again, served under a base path
+        # The hosted deploy publishes the app at /v2c, and the paths Next.js does not
+        # rewrite itself only break there. A second build, because basePath belongs to
+        # the build; one spec, because the rest of the suite is about what the page does
+        # and a prefix does not change that.
+        run: pnpm e2e:base-path
+
+  image:
+    name: image (build + smoke)
+    runs-on: ubuntu-latest
+    needs: [lint, pii-guard, test, web]
+    permissions:
+      contents: read
+      packages: write # only this job publishes to GHCR
+    env:
+      # Push on push-to-main; every other event builds and smoke-tests without
+      # publishing, so a pull request cannot put anything in the registry.
+      PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: image tags
+        id: tags
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          sha=${GITHUB_SHA::12}
+          echo "sha_tag=ghcr.io/${owner}/v2c-translator:${sha}" >> "$GITHUB_OUTPUT"
+          echo "main_tag=ghcr.io/${owner}/v2c-translator:main" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+      # Loaded into the local daemon rather than pushed, so the smoke test runs against
+      # the bytes that would be published. The push below re-exports the same cached
+      # layers and builds nothing again.
+      - name: build the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          push: false
+          tags: |
+            ${{ steps.tags.outputs.sha_tag }}
+            ${{ steps.tags.outputs.main_tag }}
+          cache-from: type=gha,scope=image
+          cache-to: type=gha,mode=max,scope=image
+
+      # Pages drive the container's memory, not file size, so the smoke test wants a
+      # multi-page scan. Drawn here; no PDF or image is committed to this repository.
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - name: draw a five-page scan for the memory measurement
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          uv sync --locked --extra ocr
+          uv run --extra ocr python tests/make_scan.py --out "$RUNNER_TEMP/scan.pdf" --pages 5
+
+      - name: smoke-test the image
+        run: deploy/smoke.sh "${{ steps.tags.outputs.sha_tag }}" --scan "$RUNNER_TEMP/scan.pdf"
+        id: smoke
+
+      - name: log in to ghcr
+        if: env.PUSH == 'true'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: push the image
+        if: env.PUSH == 'true'
+        run: |
+          docker push "${{ steps.tags.outputs.sha_tag }}"
+          docker push "${{ steps.tags.outputs.main_tag }}"
+
+      - name: summary
+        if: always()
+        run: |
+          {
+            echo "### Image"
+            echo
+            echo "- \`${{ steps.tags.outputs.sha_tag }}\`"
+            echo "- \`${{ steps.tags.outputs.main_tag }}\`"
+            echo "- pushed: ${PUSH}"
+            echo "- size to pull: ${{ steps.smoke.outputs.IMAGE_MIB || 'n/a' }} MiB"
+            echo "- size unpacked: ${{ steps.smoke.outputs.ROOTFS_MIB || 'n/a' }} MiB"
+            echo "- peak memory under OCR: ${{ steps.smoke.outputs.PEAK_RSS_MIB || 'n/a' }} MiB"
+          } >> "$GITHUB_STEP_SUMMARY"

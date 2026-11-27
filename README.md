@@ -349,8 +349,19 @@ Full structured output for downstream systems (resume builders, job matching, an
 
 [`web/`](web/) is a web page for counselors and transitioning service members. A person
 drops in their DD-214s, DD-215s and VMET and gets the same report as `dd214kw translate`,
-with Markdown and JSON downloads. It runs on your own computer. It needs Node 22,
-pnpm 10 and the index from [Quick start](#quick-start):
+with Markdown and JSON downloads.
+
+It runs in one of two modes, and `local` is the default, so nothing below changes if you
+have been running it already. **Local** is the app on your own computer: it listens on
+127.0.0.1, asks no bot check, and the page says the documents never leave the machine,
+because they don't. **Hosted** is the same app behind someone else's web server, open to
+anyone, which it says so on the page and which brings a Cloudflare Turnstile check, a
+per-visitor limit and a queue with it. One container image runs either way; the mode is
+one environment variable, read at boot. [`docs/deploy.md`](docs/deploy.md) is the hosted
+half, including what it takes to publish it at a path on an existing site.
+
+Running it locally needs Node 22, pnpm 10 and the index from
+[Quick start](#quick-start):
 
 ```bash
 uv run dd214kw build-index --download   # once
@@ -359,23 +370,41 @@ pnpm install
 pnpm dev                                 # then open http://localhost:3009
 ```
 
-For a production server, run `pnpm build && pnpm start`. The CLI reads `DD214KW_INDEX` as
-usual. `DD214KW_REPO_ROOT` (default `..`) and `DD214KW_UV` (default `uv`) tell the app
-where the repository and `uv` are.
+For a production server on your own machine, run `pnpm build && pnpm start`. The CLI
+reads `DD214KW_INDEX` as usual. `DD214KW_REPO_ROOT` (default `..`) and `DD214KW_UV`
+(default `uv`) tell the app where the repository and `uv` are; the container image sets
+`DD214KW_BIN` instead and needs neither.
 
-**Privacy.** Documents never leave the computer:
+To run the hosted app on your own machine, with Docker, see
+[`web/TESTING.md`](web/TESTING.md). To deploy it, see
+[`docs/deploy.md`](docs/deploy.md).
+
+**Privacy, in local mode.** Documents never leave the computer:
 
 - The server listens on 127.0.0.1 only.
 - `/api/translate` writes the uploaded files to a new temp directory with mode 0700, runs
-  the CLI on them with `execFile`, and deletes the directory in a `finally` block. When
-  the CLI fails, the terminal shows the last line of its error output. The page shows the
-  file name and the CLI's message, never the file's contents.
+  the CLI on them with `execFile`, and deletes the directory in a `finally` block. The
+  page shows the file name and the CLI's message, never the file's contents.
+- Nothing about a document reaches a log. A failure logs a request id and the kind of
+  failure, because the CLI's error output begins with the file name and a file name is
+  already a disclosure. `web/src/server/logging.test.ts` holds it to that.
 - The page bundles its fonts and loads nothing from other hosts. Its
   Content-Security-Policy blocks connections to any other origin.
 - Next.js can send anonymous usage telemetry about the build, never documents. Turn it off
   with `pnpm exec next telemetry disable`.
 
-**Engine seam.** The page calls `engine.translate(files)`, exported by
+**Privacy, in hosted mode.** Documents are sent, and the page says so rather than
+claiming otherwise. Uploads are read from a tmpfs and deleted when the report is ready,
+the root filesystem is read-only, nothing is stored, and the only request that leaves the
+server is the Turnstile check, which carries a token and no document. The whole model,
+clause by clause, is in [`docs/deploy.md`](docs/deploy.md#the-privacy-model).
+
+**The wording is one file.** Every sentence that differs between the two modes lives in
+[`web/src/content/copy.ts`](web/src/content/copy.ts), keyed by mode, and
+`copy.test.ts` holds each mode to what it can honestly claim: the hosted copy may not say
+the documents stay put, and the local copy may not talk about uploading.
+
+**Engine seam.** The page calls `engine.translate(files, turnstileToken)`, exported by
 [`web/src/engine/index.ts`](web/src/engine/index.ts). The one engine today, `localEngine`,
 posts the files to `/api/translate`. A Pyodide engine that runs `dd214kw` in the browser
 would replace that one export. Each engine parses its output into a `Report`, the zod
@@ -765,6 +794,13 @@ v2c-translator/
 ├── README.md
 ├── SECURITY.md                 # private vulnerability reports; no real records in issues or PRs
 ├── .github/                    # CI workflow, Dependabot, PR and issue templates
+├── Dockerfile                  # the hosted image: the page, the CLI, the index, OCR
+├── .dockerignore
+├── deploy/
+│   ├── entrypoint.sh           # picks the bind address from V2C_MODE
+│   ├── smoke.sh                # runs the built image and checks it; CI runs this too
+│   ├── verify-behind-caddy.sh  # the image behind a Caddy like the career site's, in a browser
+│   └── behind-caddy/           # the Compose rig and Caddyfiles that script stands up
 ├── pyproject.toml              # uv project; console script `dd214kw`
 ├── uv.lock
 ├── src/dd214kw/
@@ -786,14 +822,24 @@ v2c-translator/
 │   ├── models.py               # dataclasses: KeywordReport, Duration, ...
 │   ├── render.py               # rich / Markdown / JSON / ATS renderers
 │   └── data/analog_55.csv      # civilian analogs for military-only SOC 55-xxxx
-├── web/                        # local web app (Next.js); see Web app
-│   ├── src/app/                # page, layout, styles, /api/translate route
+├── web/                        # the web app (Next.js); see Web app
+│   ├── src/app/                # page, layout, styles, /api/{translate,healthz,readyz}
+│   ├── src/middleware.ts       # the security headers, per request, so the policy can vary
+│   ├── src/instrumentation.ts  # reads the environment at boot; exits if hosted mode is wrong
+│   ├── src/base-path.ts        # the one place that knows the app may be served under a path
+│   ├── src/security-headers.ts # the Content-Security-Policy, per mode
+│   ├── src/content/copy.ts     # every sentence that differs between local and hosted
+│   ├── src/server/config.ts    # V2C_MODE and the rest of the environment, parsed once
 │   ├── src/server/translate.ts # runs the CLI on uploads in a temp directory
+│   ├── src/server/turnstile.ts # verifies a token with Cloudflare, failing closed
+│   ├── src/server/gate.ts      # how many translations run at once, and how many may wait
+│   ├── src/server/rate-limit.ts# how many one visitor may ask for
+│   ├── src/server/ready.ts     # is the CLI there, is the index there
 │   ├── src/engine/             # Engine interface, Report schema, localEngine
-│   ├── src/components/         # upload, report view, sample loader
+│   ├── src/components/         # upload, report view, sample loader, Turnstile widget
 │   ├── public/samples/         # copies of the synthetic Army fixtures
-│   ├── e2e/                    # Playwright test in the system Chrome
-│   └── TESTING.md              # manual acceptance steps
+│   ├── e2e/                    # Playwright tests in the system Chrome
+│   └── TESTING.md              # manual acceptance steps, local and hosted
 ├── tests/
 │   ├── fixtures/               # synthetic DD-214s: Army 2000, Navy 2022, AF + USMC JSON;
 │   │                           #   a DD-215 JSON that corrects the Army 2000 DD-214;
@@ -810,8 +856,10 @@ v2c-translator/
 │   ├── test_inspect_layout.py  # inspect-layout prints geometry only, on every synthetic form
 │   ├── test_translate.py       # end-to-end (skipped if no index is built)
 │   ├── synthetic_dd214.py      # draws a fictional AUG 2009 DD-214 PDF, and scans and OCRs it
+│   ├── make_scan.py            # writes a scanned, image-only DD-214 for a memory measurement
 │   └── ocr_sweep.py            # which fields survive each scan condition: dpi, blur, noise, skew
 ├── docs/
+│   ├── deploy.md               # the hosted deploy: env, the career-site changes, sizing
 │   ├── data-sources.md         # research inventory of data sources
 │   ├── design/                 # design docs (multi-document input)
 │   ├── inspect-layout.md       # how to send your DD-214's layout, step by step

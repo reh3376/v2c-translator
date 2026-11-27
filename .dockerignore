@@ -1,0 +1,19 @@
+# The build needs the web app, the CLI source, the lockfiles and the entrypoint. Keeping
+# everything else out of the context keeps the build fast and keeps anything a developer
+# happens to have lying around out of the image.
+*
+
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!src/
+!deploy/entrypoint.sh
+!web/
+
+# Nothing under web/ that the build makes for itself, or that only tests use.
+web/node_modules/
+web/.next/
+web/test-results/
+web/playwright-report/
+web/docs/screenshots/

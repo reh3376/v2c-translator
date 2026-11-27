@@ -1,13 +1,15 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { useEffect, useReducer, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState, type DragEvent } from "react";
+import { HOSTED_ONLY, type Copy } from "@/content/copy";
 import { engine, type Report, type TranslateFailure, type TranslateResult } from "@/engine";
 import { BranchBand } from "./branch-band";
 import { formatBytes } from "./format";
 import { pressable, sweep } from "./motion";
 import { ReportView } from "./report-view";
 import { loadSamples } from "./samples";
+import { TurnstileGate } from "./turnstile-gate";
 
 const ACCEPT = ".pdf,.txt,.json,.png,.jpg,.jpeg,.tif,.tiff";
 
@@ -54,13 +56,22 @@ function reduce(state: State, action: Action): State {
   }
 }
 
-export function Translator() {
+/**
+ * `copy` says what this deploy can honestly promise about the reader's documents, and
+ * `siteKey` is the public half of the Turnstile pair when there is a bot check to pass.
+ * Both are read from the environment per request by `app/page.tsx` and handed down, so
+ * one build serves either mode.
+ */
+export function Translator({ copy, siteKey }: { copy: Copy; siteKey: string | null }) {
   const [{ files, phase }, dispatch] = useReducer(reduce, { files: [], phase: { kind: "editing" } });
   const [dragging, setDragging] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [round, setRound] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const reduced = useReducedMotion() ?? false;
   const busy = phase.kind === "translating";
   const detected = phase.kind === "done" ? phase.report.profile.context?.branch : null;
+  const onToken = useCallback((fresh: string | null) => setToken(fresh), []);
 
   useEffect(() => {
     const keepPage = (event: globalThis.DragEvent) => event.preventDefault();
@@ -73,8 +84,17 @@ export function Translator() {
   }, []);
 
   async function translate(chosen: File[]) {
+    // Said here rather than by the server, so a reader who hasn't ticked the box is told
+    // so before their documents go over the wire instead of after.
+    if (siteKey && !token) {
+      dispatch({ type: "fail", error: { ok: false, message: HOSTED_ONLY.turnstileMissing } });
+      return;
+    }
     dispatch({ type: "start" });
-    const result = await engine.translate(chosen);
+    const result = await engine.translate(chosen, token);
+    // A Turnstile token is good for one translation, so the widget has to be asked again.
+    setToken(null);
+    setRound((spent) => spent + 1);
     dispatch({ type: "finish", result, fileName: chosen[0]?.name ?? "", producedOn: new Date() });
   }
 
@@ -83,7 +103,7 @@ export function Translator() {
     try {
       samples = await loadSamples();
     } catch {
-      const message = "The sample documents couldn't be loaded. Restart the app and try again.";
+      const message = "The sample documents couldn't be loaded. Reload the page and try again.";
       dispatch({ type: "fail", error: { ok: false, message } });
       return;
     }
@@ -138,10 +158,7 @@ export function Translator() {
                 Choose files
               </motion.button>
             </p>
-            <p className="hint">
-              DD-214s, DD-215s and your VMET, as PDF, text or JSON. Scans work when OCR is installed. Up to 10 files, 10
-              MB each.
-            </p>
+            <p className="hint">{copy.dropzoneHint}</p>
             <input
               ref={input}
               type="file"
@@ -175,6 +192,8 @@ export function Translator() {
             </ul>
           ) : null}
 
+          {siteKey ? <TurnstileGate siteKey={siteKey} onToken={onToken} round={round} /> : null}
+
           <div className="actions">
             {files.length > 0 ? (
               <motion.button
@@ -205,11 +224,10 @@ export function Translator() {
         </div>
 
         <aside className="privacy" aria-labelledby="privacy-heading">
-          <h2 id="privacy-heading">Stays on this computer</h2>
-          <p>
-            Your documents are read by the translator running on this computer. Nothing is uploaded to the internet,
-            and nothing is stored. Each file is deleted as soon as its report is ready.
-          </p>
+          <h2 id="privacy-heading">{copy.privacy.heading}</h2>
+          {copy.privacy.paragraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
         </aside>
       </section>
 

@@ -1,0 +1,49 @@
+# The hosted translator behind a Caddy configured like the career site's, on one laptop.
+#
+#   deploy/verify-behind-caddy.sh ghcr.io/reh3376/v2c-translator:main
+#
+# This is a test rig, not a deploy. It exists because the career site's Caddy sends its
+# own Content-Security-Policy and a browser enforces both of them, and no amount of
+# reading two policies tells you whether their intersection lets Turnstile render. The
+# `v2c` service here is the one docs/deploy.md asks that repository to add, with the same
+# read_only, tmpfs, mem_limit and healthcheck, so the rig checks the real shape.
+#
+# The Turnstile keys are Cloudflare's documented public test values, which always pass.
+
+name: v2c-behind-caddy
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: "no"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ${V2C_CADDYFILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro
+    depends_on:
+      v2c:
+        condition: service_healthy
+    networks: [rig]
+
+  v2c:
+    image: ${V2C_IMAGE:?set V2C_IMAGE to the image to test}
+    restart: "no"
+    environment:
+      TZ: UTC
+      V2C_MODE: hosted
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      V2C_MAX_CONCURRENT: "2"
+      V2C_QUEUE_MAX: "8"
+      V2C_RATE_LIMIT: "3"
+      V2C_RATE_WINDOW_MINUTES: "10"
+      V2C_TMPDIR: /tmp/v2c
+    read_only: true
+    tmpfs:
+      - /tmp/v2c:rw,noexec,nosuid,size=256m,mode=1777
+    mem_limit: 3g
+    networks: [rig]
+
+networks:
+  rig:
+    driver: bridge

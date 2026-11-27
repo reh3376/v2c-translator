@@ -10,5 +10,9 @@ export type TranslateResult = z.infer<typeof TranslateResult>;
 export type TranslateFailure = Extract<TranslateResult, { ok: false }>;
 
 export interface Engine {
-  translate(files: File[]): Promise<TranslateResult>;
+  /**
+   * `turnstileToken` is the proof-of-not-a-robot a hosted deploy asks for. Local mode
+   * runs no check and passes null.
+   */
+  translate(files: File[], turnstileToken: string | null): Promise<TranslateResult>;
 }

@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { useRef, type ReactNode } from "react";
+import type { Copy } from "@/content/copy";
 import { arrive, cellWindow, fan } from "./motion";
 import { useAnimated } from "./use-animated";
 
@@ -15,6 +16,9 @@ import { useAnimated } from "./use-animated";
  * drawn shapes, so scrolling straight past it costs nothing.
  *
  * Every value shown here is invented. No part of this reads anyone's documents.
+ *
+ * The lede and step one's body come from `content/copy.ts`: where the three steps happen, and
+ * whether OCR is something the reader has to install, both depend on the deploy mode.
  */
 
 const DOCUMENTS = [
@@ -36,7 +40,7 @@ const KEYWORDS = [
   "Training Delivery",
 ];
 
-export function HowItWorks() {
+export function HowItWorks({ copy }: { copy: Copy }) {
   const reduced = useReducedMotion() ?? false;
   const moving = useAnimated() && !reduced;
   const animated = useAnimated();
@@ -44,16 +48,9 @@ export function HowItWorks() {
   return (
     <section className="story" aria-labelledby="story-heading">
       <h2 id="story-heading">How it works</h2>
-      <p className="story-lede">
-        Three steps, and all three happen on this computer. The pictures below use made-up values,
-        not yours.
-      </p>
+      <p className="story-lede">{copy.storyLede}</p>
 
-      <Step
-        n={1}
-        title="Add your documents"
-        body="Your DD-214s, any DD-215 corrections and your VMET, as PDF, text or JSON. Scans work when OCR is installed."
-      >
+      <Step n={1} title="Add your documents" body={copy.addDocumentsBody}>
         <Stack animated={animated} reduced={reduced} />
       </Step>
 

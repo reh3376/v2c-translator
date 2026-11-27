@@ -11,6 +11,7 @@ import {
   type MotionValue,
 } from "motion/react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { asset } from "@/base-path";
 import {
   actorArt,
   BRANCH_PANELS,
@@ -147,7 +148,7 @@ function Panel({
           <span className="band-art" role="img" aria-label={panel.alt}>
             {panel.photo ? (
               <span className="plane">
-                <Image src={panel.photo.src} alt="" width={480} height={320} unoptimized />
+                <Image src={asset(panel.photo.src)} alt="" width={480} height={320} unoptimized />
               </span>
             ) : (
               PLANES.map((plane) => (
@@ -216,12 +217,20 @@ function Actor({ art, beat, playing, reduced }: { art: Layer; beat: Beat; playin
   );
 }
 
-/** The same drawing twice: by day and after dark. The stylesheet shows one. */
+/**
+ * The same drawing twice: by day and after dark. The stylesheet shows one.
+ *
+ * `asset()` because these are `unoptimized`. Next.js rewrites the URL it hands its own
+ * image optimizer to sit under `basePath`, but an unoptimized image is served as the src
+ * says, so under `/v2c` a bare `/branches/...` is a 404. `e2e/base-path.spec.ts` loads
+ * the page under a base path and fails on any request that 404s, which is how that was
+ * found and how it stays found.
+ */
 function Pair({ art }: { art: Layer }) {
   return (
     <>
-      <Image className="art-day" src={art.day} alt="" width={480} height={320} unoptimized />
-      <Image className="art-night" src={art.night} alt="" width={480} height={320} unoptimized />
+      <Image className="art-day" src={asset(art.day)} alt="" width={480} height={320} unoptimized />
+      <Image className="art-night" src={asset(art.night)} alt="" width={480} height={320} unoptimized />
     </>
   );
 }
