@@ -3,7 +3,7 @@ import { HowItWorks } from "@/components/how-it-works";
 import { Resources } from "@/components/resources";
 import { ThemeControl } from "@/components/theme-control";
 import { Translator } from "@/components/translator";
-import { COPY } from "@/content/copy";
+import { COPY, pagesHint } from "@/content/copy";
 import { serverConfig } from "@/server/config";
 
 /**
@@ -14,8 +14,9 @@ import { serverConfig } from "@/server/config";
 export const dynamic = "force-dynamic";
 
 export default function Home() {
-  const { mode, turnstile } = serverConfig();
+  const { mode, turnstile, limits } = serverConfig();
   const copy = COPY[mode];
+  const pages = limits.maxPages === null ? null : pagesHint(limits.maxPages);
 
   return (
     <CalmMotion>
@@ -31,7 +32,7 @@ export default function Home() {
             and a keyword string ready for job applications.
           </p>
         </div>
-        <Translator copy={copy} siteKey={turnstile?.siteKey ?? null} />
+        <Translator copy={copy} siteKey={turnstile?.siteKey ?? null} pages={pages} />
         <HowItWorks copy={copy} />
         <Resources lede={copy.resourcesLede} />
       </main>

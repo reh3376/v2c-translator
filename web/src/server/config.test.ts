@@ -60,6 +60,17 @@ describe("what hosted mode tightens", () => {
     expect(parseConfig(HOSTED).maxConcurrent).toBe(2);
     expect(parseConfig({}).maxConcurrent).toBe(4);
   });
+
+  it("caps the pages in one document, where local mode caps none", () => {
+    expect(parseConfig(HOSTED).limits.maxPages).toBe(6);
+    expect(parseConfig({}).limits.maxPages).toBeNull();
+  });
+
+  it("takes the page limit from the environment, in either mode, and 0 means no limit", () => {
+    expect(parseConfig({ ...HOSTED, V2C_MAX_PAGES: "4" }).limits.maxPages).toBe(4);
+    expect(parseConfig({ V2C_MAX_PAGES: "4" }).limits.maxPages).toBe(4);
+    expect(parseConfig({ ...HOSTED, V2C_MAX_PAGES: "0" }).limits.maxPages).toBeNull();
+  });
 });
 
 describe("the knobs the deploy sets", () => {

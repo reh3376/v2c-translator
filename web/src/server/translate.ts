@@ -119,26 +119,67 @@ function runCli(config: CliConfig, cwd: string, args: string[]): Promise<CliRun>
   });
 }
 
-/** The CLI exits 2 on a file it can't read and prints `<file>: <message>` on stderr. */
-function extractionError(stderr: string, uploads: Upload[], dir: string): TranslateFailure | null {
+/** What `-f json+md` prints: one extraction, both formats. See `render.to_bundle`. */
+interface Bundle {
+  readonly report: unknown;
+  readonly markdown: string;
+}
+
+function isBundle(value: unknown): value is Bundle {
+  if (typeof value !== "object" || value === null) return false;
+  return "report" in value && typeof (value as Bundle).markdown === "string";
+}
+
+/** `--max-pages` refused a document. The CLI counts the pages; the sentence is this file's. */
+const TOO_MANY_PAGES = /^too many pages: (\d+) \(limit (\d+)\)$/;
+
+/**
+ * The CLI exits 2 on a file it can't read, or won't, and prints `<file>: <message>` on
+ * stderr. Each one is about a single file, so the answer names it as the visitor spelled
+ * it rather than as it was saved, and never carries the temp directory.
+ */
+function fileFailure(
+  stderr: string,
+  uploads: Upload[],
+  dir: string,
+): { status: number; body: TranslateFailure } | null {
   for (const line of stderr.split("\n")) {
     const upload = uploads.find((u) => line.startsWith(`${u.saved}: `));
-    if (upload) {
-      const message = line.slice(upload.saved.length + 2).replaceAll(dir, "").trim();
-      return { ok: false, file: upload.original, message };
+    if (!upload) continue;
+    const message = line.slice(upload.saved.length + 2).replaceAll(dir, "").trim();
+    const refused = TOO_MANY_PAGES.exec(message);
+    if (refused) {
+      return {
+        status: 413,
+        body: {
+          ok: false,
+          file: upload.original,
+          message:
+            `This file has ${refused[1]} pages; the translator reads up to ${refused[2]} per document. ` +
+            "A DD-214 is 1-2 pages; send just those pages.",
+        },
+      };
     }
+    return { status: 422, body: { ok: false, file: upload.original, message } };
   }
   return null;
 }
 
+/**
+ * One `dd214kw translate`, which prints the report as JSON and as Markdown from a single
+ * reading of the documents. It used to be two runs in parallel, one per format, which
+ * OCR'd every scanned page twice: see the Sizing table in docs/deploy.md for what that
+ * cost. The Markdown is rendered from the same report in memory, so the two cannot
+ * disagree either.
+ */
 async function translate(uploads: Upload[], config: ServerConfig, dir: string, id: string): Promise<Response> {
   const generic = COPY[config.mode].genericFailure;
-  const names = uploads.map((u) => u.saved);
-  const [json, markdown] = await Promise.all([
-    runCli(config.cli, dir, ["translate", ...names, "--ocr", "-f", "json"]),
-    runCli(config.cli, dir, ["translate", ...names, "--ocr", "-f", "md"]),
-  ]);
-  if (json.kind === "timeout" || markdown.kind === "timeout") {
+  const { maxPages } = config.limits;
+  const args = ["translate", ...uploads.map((u) => u.saved), "--ocr", "-f", "json+md"];
+  if (maxPages !== null) args.push("--max-pages", String(maxPages));
+  const run = await runCli(config.cli, dir, args);
+
+  if (run.kind === "timeout") {
     const seconds = config.cli.timeoutMs / 1000;
     logFailure(id, "cli-timeout");
     return failure(504, {
@@ -146,27 +187,26 @@ async function translate(uploads: Upload[], config: ServerConfig, dir: string, i
       message: `The translator stopped after ${seconds} seconds. Try fewer files at a time.`,
     });
   }
-  if (json.kind === "exit" && json.code === 2) {
-    const error = extractionError(json.stderr, uploads, dir);
-    if (error) return failure(422, error);
+  if (run.kind === "exit" && run.code === 2) {
+    const refused = fileFailure(run.stderr, uploads, dir);
+    if (refused) return failure(refused.status, refused.body);
   }
-  if (json.kind !== "ok") {
-    logFailure(id, `cli-${json.kind}`, json.kind === "exit" ? json.code : undefined);
-    return failure(500, { ok: false, message: generic });
-  }
-  if (markdown.kind !== "ok") {
-    logFailure(id, `cli-${markdown.kind}`, markdown.kind === "exit" ? markdown.code : undefined);
+  if (run.kind !== "ok") {
+    logFailure(id, `cli-${run.kind}`, run.kind === "exit" ? run.code : undefined);
     return failure(500, { ok: false, message: generic });
   }
 
-  let report: unknown;
+  let bundle: unknown;
   try {
-    report = JSON.parse(json.stdout);
+    bundle = JSON.parse(run.stdout);
   } catch {
+    bundle = null;
+  }
+  if (!isBundle(bundle)) {
     logFailure(id, "cli-bad-json");
     return failure(500, { ok: false, message: generic });
   }
-  return Response.json({ ok: true, report, markdown: markdown.stdout });
+  return Response.json({ ok: true, report: bundle.report, markdown: bundle.markdown });
 }
 
 /**

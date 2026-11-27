@@ -39,6 +39,12 @@ export interface Limits {
   readonly maxFileBytes: number;
   /** How large the whole request may be. Hosted mode is stricter; see `parseConfig`. */
   readonly maxBodyBytes: number;
+  /**
+   * How many pages one document may have, or null for no limit. Pages are what drive
+   * the memory and the time an OCR translation takes, so this is the number that makes
+   * the ceiling a limit rather than a timeout. See [Sizing](../../../docs/deploy.md).
+   */
+  readonly maxPages: number | null;
   /** How long one `dd214kw translate` may run. */
   readonly timeoutMs: number;
 }
@@ -74,7 +80,7 @@ interface Deploy {
   readonly limits: Limits;
   /** Where temp directories for uploads are made. The container mounts a tmpfs here. */
   readonly tmpDir: string;
-  /** Translations running at once. Each one runs two CLI processes; see docs/deploy.md. */
+  /** Translations running at once. Each one runs one CLI process; see docs/deploy.md. */
   readonly maxConcurrent: number;
   /** Translations allowed to wait. Past this, a request gets 503 and a Retry-After. */
   readonly queueMax: number;
@@ -143,8 +149,17 @@ export function parseConfig(env: Env = process.env): ServerConfig {
       ? count(env, "V2C_MAX_BODY_MB", 25) * MB
       : maxFiles * maxFileBytes + MB;
 
+  // Hosted mode caps the pages in one document, because pages are what an OCR
+  // translation costs and that cost is shared with everyone else using the server. Six
+  // covers any single document a visitor should be sending (a DD-214 is 1-2 pages, a
+  // VMET 2-4) and stays well inside the 60-second timeout: 27 seconds measured, against
+  // a 60-second timeout, on a 2-core box. See Sizing in docs/deploy.md. Local mode has
+  // one user, their own memory and no queue, so it caps nothing unless they ask for it.
+  // Zero means no limit, in either mode.
+  const pages = count(env, "V2C_MAX_PAGES", deployed === "hosted" ? 6 : 0, 0);
+
   const deploy: Deploy = {
-    limits: { maxFiles, maxFileBytes, maxBodyBytes, timeoutMs },
+    limits: { maxFiles, maxFileBytes, maxBodyBytes, maxPages: pages || null, timeoutMs },
     tmpDir: env.V2C_TMPDIR?.trim() || tmpdir(),
     maxConcurrent: count(env, "V2C_MAX_CONCURRENT", deployed === "hosted" ? 2 : 4),
     // Zero is a legitimate setting: no waiting at all, busy means busy.

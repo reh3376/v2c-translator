@@ -1,11 +1,10 @@
 /**
  * How many translations run at once, and how many may wait.
  *
- * One translation runs `dd214kw translate` twice in parallel, once for JSON and once for
- * Markdown, and a scanned page means tesseract in both. On the box this is deployed to,
- * that is the whole memory budget of the service in a couple of requests, so the number
- * is small and the overflow is explicit: past the queue, a visitor is told to come back
- * rather than joining a line that will time out anyway.
+ * One translation runs `dd214kw translate` once, and a scanned page means tesseract in
+ * it. On the box this is deployed to, a few of those are the whole memory budget of the
+ * service, so the number is small and the overflow is explicit: past the queue, a visitor
+ * is told to come back rather than joining a line that will time out anyway.
  *
  * In memory, and that is correct rather than a shortcut: there is one container, and if
  * there were two the gate would have to move to something both could see. `docs/deploy.md`

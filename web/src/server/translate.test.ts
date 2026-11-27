@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,13 @@ import { POST } from "@/app/api/translate/route";
 import { HOSTED_ONLY } from "@/content/copy";
 import { parseConfig, type Env, type ServerConfig } from "./config";
 import { command, handleTranslate, makeThrottle } from "./translate";
+
+// The real `execFile`, counted. How many times the CLI is started per upload is the whole
+// of the memory and time one translation costs, so it is worth a test rather than a note.
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return { ...actual, execFile: vi.fn(actual.execFile) };
+});
 
 const systemTmp = os.tmpdir();
 const fixtures = path.join(parseConfig({}).cli.repoRoot, "tests", "fixtures");
@@ -51,6 +59,29 @@ function upload(files: File[], extra: Record<string, string> = {}, headers: Head
 
 const textFile = (name: string, body = "hello") => new File([body], name, { type: "text/plain" });
 
+/**
+ * A PDF of `n` empty pages, and nothing else. Built here because no PDF is committed to
+ * this repository, and empty because the page limit is checked before any page is read.
+ */
+function pdfOfPages(n: number, name = "long-scan.pdf"): File {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Count ${n} /Kids [${Array.from({ length: n }, (_, i) => `${i + 3} 0 R`).join(" ")}] >>`,
+    ...Array.from({ length: n }, () => "<< /Type /Page /Parent 2 0 R /Resources << >> /MediaBox [0 0 612 792] >>"),
+  ];
+  const offsets: number[] = [];
+  let pdf = "%PDF-1.4\n";
+  objects.forEach((object, i) => {
+    offsets.push(pdf.length); // every byte of this file is ASCII, so length is the offset
+    pdf += `${i + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const startxref = pdf.length;
+  const entries = offsets.map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${entries}`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`;
+  return new File([pdf], name, { type: "application/pdf" });
+}
+
 /** Cloudflare, answering yes to everything, without leaving this process. */
 function cloudflareSaysYes(): void {
   vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ success: true }));
@@ -72,6 +103,54 @@ describe("POST /api/translate, a file the CLI can't read", () => {
       message: "Unrecognised document: no extractor knows this layout.",
     });
     expect(await leftovers()).toEqual([]);
+  });
+});
+
+describe("POST /api/translate, one reading of the documents", () => {
+  it("starts the CLI once and answers with both the report and the Markdown", async () => {
+    const started = vi.mocked(execFile);
+    started.mockClear();
+    const sample = textFile("army_2000.txt", await readFile(path.join(fixtures, "army_2000.txt"), "utf8"));
+
+    const response = await run(upload([sample]), local);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.markdown).toContain("# Civilian Workforce Keywords");
+    expect(body.report.profile).toBeDefined();
+    expect(started).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /api/translate, the page limit", () => {
+  it("refuses a document longer than the limit, names it, and says what the limit is", async () => {
+    const config = { ...local, limits: { ...local.limits, maxPages: 8 } };
+
+    const response = await run(upload([pdfOfPages(14)]), config);
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      ok: false,
+      file: "long-scan.pdf",
+      message:
+        "This file has 14 pages; the translator reads up to 8 per document. " +
+        "A DD-214 is 1-2 pages; send just those pages.",
+    });
+    expect(await leftovers()).toEqual([]);
+  });
+
+  it("hands a document at the limit to the CLI, so the limit is the cap and not one below it", async () => {
+    const config = { ...local, limits: { ...local.limits, maxPages: 2 } };
+    const started = vi.mocked(execFile);
+    started.mockClear();
+
+    const response = await run(upload([pdfOfPages(2)]), config);
+
+    // What this is about is that two pages are not refused for being three. What the CLI
+    // then makes of two empty pages depends on whether this machine has OCR installed,
+    // so the status is only asserted not to be the page limit's.
+    expect(started).toHaveBeenCalledTimes(1);
+    expect(response.status).not.toBe(413);
   });
 });
 

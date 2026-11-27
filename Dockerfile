@@ -4,9 +4,9 @@
 # O*NET index that CLI looks every specialty up in, and the two binaries OCR needs.
 #
 # One image, because the page and the CLI are one request: `/api/translate` writes the
-# uploaded files to a temp directory and runs `dd214kw translate` on them twice, for JSON
-# and for Markdown. Splitting them into two containers would mean shipping documents over
-# a network hop between them, which is the opposite of what this service promises.
+# uploaded files to a temp directory and runs `dd214kw translate` on them once, for both
+# output formats. Splitting them into two containers would mean shipping documents over a
+# network hop between them, which is the opposite of what this service promises.
 #
 # Node and Python in the same image, because of that. The base is a Node image and Python
 # comes from Debian, rather than the other way round, because the Node runtime is the
