@@ -132,7 +132,7 @@ uv run dd214kw translate scanned_dd214.pdf --ocr
 ## CLI reference
 
 ```
-dd214kw [--index PATH] {build-index, translate, lookup, inspect-layout} ...
+dd214kw [--index PATH] {build-index, translate, lookup, inspect-layout, check-ocr} ...
 ```
 
 The global option `--index PATH` sets the location of the SQLite index. It defaults to
@@ -202,6 +202,15 @@ Prints where things sit on a DD-214 page, with no text from it. See
 | `-o, --output PATH` | stdout | Write the text to a file instead |
 | `--png PATH` | none | Also draw the geometry as a picture |
 
+### `check-ocr`
+
+Renders a blank page and reads it, to prove the OCR tools can run here. Takes no options
+and reads no document. Exits 0 when they ran, and when they are not installed at all;
+exits 3, with the error's class on stderr, when they are installed and could not run. That
+last case is nearly always a temporary directory this process cannot write to, which
+breaks every scanned page while a text PDF still translates. The hosted deploy's
+`/api/readyz` runs this, so such a container never takes traffic.
+
 ---
 
 ## Input formats
@@ -209,7 +218,7 @@ Prints where things sit on a DD-214 page, with no text from it. See
 | Input | How it's read |
 |---|---|
 | `.pdf` with a text layer | `pypdf` text extraction plus any fillable-form field values, and each word's position from `pdfminer.six`. A DD-214 is read by [block position](#reading-a-pdf-by-block-position). |
-| `.pdf` scan | `--ocr`: `pdf2image` + Tesseract, at the scan's own resolution up to 300 dpi |
+| `.pdf` scan | `--ocr`: `pdf2image` + Tesseract in sparse-text mode (`--psm 11`), at the scan's own resolution up to 300 dpi. A DD-214 is not one column of text, and tesseract's one-column mode runs block 12's grid rows together. |
 | `.png` `.jpg` `.tif` … | Tesseract OCR (needs the `ocr` extra) |
 | `.txt` | Read as-is |
 | `.json` | Pre-extracted DD-214 or DD-215 fields, for use with an upstream OCR or LLM extraction step |
@@ -797,16 +806,17 @@ v2c-translator/
 ├── Dockerfile                  # the hosted image: the page, the CLI, the index, OCR
 ├── .dockerignore
 ├── deploy/
-│   ├── entrypoint.sh           # picks the bind address from V2C_MODE
+│   ├── entrypoint.sh           # exports TMPDIR; picks the bind address from V2C_MODE
 │   ├── smoke.sh                # runs the built image and checks it; CI runs this too
 │   ├── verify-behind-caddy.sh  # the image behind a Caddy like the career site's, in a browser
 │   └── behind-caddy/           # the Compose rig and Caddyfiles that script stands up
 ├── pyproject.toml              # uv project; console script `dd214kw`
 ├── uv.lock
 ├── src/dd214kw/
-│   ├── cli.py                  # argparse CLI: build-index | translate | lookup | inspect-layout
+│   ├── cli.py                  # argparse CLI: build-index | translate | lookup | inspect-layout | check-ocr
 │   ├── extract.py              # PDF text layer, word positions, form fields, OCR fallback,
 │   │                           #   and the page images behind a scan
+│   ├── ocr_check.py            # can the OCR tools run here? what /api/readyz asks
 │   ├── inspect_layout.py       # a DD-214 page's geometry, with no text, to share
 │   ├── extractors/             # read(), detect(): one module per document type, emitting facts
 │   │   ├── dd214.py            # DD-214 text (2000 + 2022 layouts) and JSON

@@ -152,17 +152,25 @@ jobs:
           cache-to: type=gha,mode=max,scope=image
 
       # Pages drive the container's memory, not file size, so the smoke test wants a
-      # multi-page scan. Drawn here; no PDF or image is committed to this repository.
+      # multi-page scan. The second scan is a plain office scanner's own PDF, whose
+      # reading of block 12 is garbled, so the smoke test can prove every value in that
+      # block is still re-read from the page image inside the read-only container. That is
+      # the path the hosted deploy got wrong. Both are drawn here; no PDF or image is
+      # committed to this repository.
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
-      - name: draw a five-page scan for the memory measurement
+      - name: draw the scans the smoke test reads
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends poppler-utils
           uv sync --locked --extra ocr
           uv run --extra ocr python tests/make_scan.py --out "$RUNNER_TEMP/scan.pdf" --pages 5
+          uv run --extra ocr python tests/make_scan.py --out "$RUNNER_TEMP/rescan.pdf" \
+            --kind text-layer --dpi 150
 
       - name: smoke-test the image
-        run: deploy/smoke.sh "${{ steps.tags.outputs.sha_tag }}" --scan "$RUNNER_TEMP/scan.pdf"
+        run: |
+          deploy/smoke.sh "${{ steps.tags.outputs.sha_tag }}" \
+            --scan "$RUNNER_TEMP/scan.pdf" --block12 "$RUNNER_TEMP/rescan.pdf"
         id: smoke
 
       - name: log in to ghcr

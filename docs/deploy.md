@@ -73,7 +73,7 @@ build. The image is built with `V2C_BASE_PATH=/v2c`; a build arg changes it.
 | `V2C_RATE_LIMIT` | 10 | Translations per window per visitor. Hosted only. |
 | `V2C_RATE_WINDOW_MINUTES` | 10 | The window. |
 | `V2C_MAX_BODY_MB` | 25 | The whole multipart request, hosted only. The per-file limit (10 MB) and the file count (10) do not change. |
-| `V2C_TMPDIR` | the system temp dir | Where uploads are written. Point it at a tmpfs. |
+| `V2C_TMPDIR` | the system temp dir | Where uploads are written, and what the entrypoint exports as `TMPDIR`, so the OCR tools' own temp files go to the same tmpfs. Point it at a tmpfs. |
 | `V2C_HOST` | — | Overrides the bind address the mode would choose. |
 | `PORT` | 3009 | |
 | `DD214KW_BIN` | set in the image | The CLI executable. Unset on a developer's machine, where `uv run` is used instead. |
@@ -83,10 +83,13 @@ Two endpoints exist for the deploy rather than for a reader:
 
 - `GET /v2c/api/healthz` — is this process serving? No CLI, no file system. This is what
   the container's `HEALTHCHECK` and compose's healthcheck call every thirty seconds.
-- `GET /v2c/api/readyz` — can it actually translate? Runs `dd214kw --version` and checks
-  the index is there, cached for a minute on a pass and five seconds on a fail. 503 with
-  which of the two is missing. **This is the one a rollout should wait on.** An image
-  built without the index serves a perfectly healthy page that fails on every upload.
+- `GET /v2c/api/readyz` — can it actually translate? Runs `dd214kw --version`, checks the
+  index is there, and runs `dd214kw check-ocr`, which renders a blank page and reads it in
+  this container's own temp directory. Cached for a minute on a pass and five seconds on a
+  fail. 503 with which of the three it was. **This is the one a rollout should wait on.**
+  An image built without the index serves a perfectly healthy page that fails on every
+  upload; a container whose temp directory is not writable serves a healthy page that
+  translates a text PDF and reads nothing off a scan.
 
 ## What the career site has to add
 
@@ -292,7 +295,7 @@ ssh career@5.161.62.205 "cd /opt/career-site \
      up -d v2c"
 
 # 4. Wait for it to say it can translate, not merely that it is alive.
-curl -fsS https://rogerhenley.dev/v2c/api/readyz    # {"ok":true,"checks":{"cli":true,"index":true}}
+curl -fsS https://rogerhenley.dev/v2c/api/readyz    # {"ok":true,"checks":{"cli":true,"index":true,"ocr":true}}
 
 # 5. Look at the page, and at the one thing no script checks: does the robot
 #    check's box appear? Then translate the sample documents.

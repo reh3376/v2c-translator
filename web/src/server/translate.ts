@@ -119,6 +119,24 @@ function runCli(config: CliConfig, cwd: string, args: string[]): Promise<CliRun>
   });
 }
 
+/**
+ * The CLI exits 3 when the OCR tools on this server are installed and could not run (no
+ * writable temp directory, no poppler, a tesseract that exits non-zero), and prints one
+ * line holding the error's class and nothing else. Matched strictly, because what this
+ * returns reaches a log line and the rest of stderr never may.
+ *
+ * Kept out of the message to the visitor: this is a fault here, so they are not told to
+ * try another document, and `/api/readyz` is already failing for the same reason.
+ */
+const OCR_UNAVAILABLE_EXIT = 3;
+const OCR_UNAVAILABLE_RE = /^ocr-unavailable: ([A-Za-z]+)$/m;
+const OCR_UNAVAILABLE_RETRY_SECONDS = 60;
+
+function ocrUnavailable(run: CliRun): string | null {
+  if (run.kind !== "exit" || run.code !== OCR_UNAVAILABLE_EXIT) return null;
+  return OCR_UNAVAILABLE_RE.exec(run.stderr)?.[1] ?? "unknown";
+}
+
 /** The CLI exits 2 on a file it can't read and prints `<file>: <message>` on stderr. */
 function extractionError(stderr: string, uploads: Upload[], dir: string): TranslateFailure | null {
   for (const line of stderr.split("\n")) {
@@ -145,6 +163,20 @@ async function translate(uploads: Upload[], config: ServerConfig, dir: string, i
       ok: false,
       message: `The translator stopped after ${seconds} seconds. Try fewer files at a time.`,
     });
+  }
+  const brokenOcr = ocrUnavailable(json) ?? ocrUnavailable(markdown);
+  if (brokenOcr) {
+    logFailure(id, `ocr-unavailable-${brokenOcr}`);
+    return failure(
+      503,
+      {
+        ok: false,
+        message:
+          "This server could not read a scanned page just now. Nothing is wrong with " +
+          "your document. Try again in a few minutes.",
+      },
+      { "retry-after": String(OCR_UNAVAILABLE_RETRY_SECONDS) },
+    );
   }
   if (json.kind === "exit" && json.code === 2) {
     const error = extractionError(json.stderr, uploads, dir);

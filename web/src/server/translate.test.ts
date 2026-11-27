@@ -147,6 +147,58 @@ describe("how the CLI is reached", () => {
   });
 });
 
+describe("when the OCR tools on this server cannot run", () => {
+  /**
+   * `dd214kw` exits 3 and prints its error's class when the tools are installed and
+   * cannot run: nearly always a temp directory this container cannot write to, which
+   * leaves a text PDF translating and every scan unreadable. The visitor is not told that
+   * their document is at fault, and the log gets the class and nothing else.
+   */
+  const brokenOcr = async (stderr: string) => {
+    const bin = await mkdtemp(path.join(systemTmp, "broken-ocr-"));
+    const fake = path.join(bin, "uv");
+    await writeFile(fake, `#!/bin/sh\necho "${stderr}" >&2\nexit 3\n`, { mode: 0o755 });
+    return { bin, config: { ...local, cli: { ...local.cli, bin: null, uv: fake } } };
+  };
+
+  const logged = () => {
+    const lines: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => void lines.push(a.join(" ")));
+    return () => lines.join("\n");
+  };
+
+  it("says so, and says nothing about the document", async () => {
+    const { bin, config } = await brokenOcr("ocr-unavailable: PermissionError");
+    const log = logged();
+
+    try {
+      const response = await run(upload([textFile("scan.pdf")]), config);
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("retry-after")).toBe("60");
+      expect((await response.json()).message).toContain("Nothing is wrong with your document");
+      expect(log()).toMatch(/^translate failed id=[0-9a-f]{8} kind=ocr-unavailable-PermissionError$/);
+    } finally {
+      await rm(bin, { recursive: true, force: true });
+    }
+  });
+
+  it("logs no other word of stderr, whatever the CLI printed with it", async () => {
+    const { bin, config } = await brokenOcr("Sgt-Jane-Q-Veteran-dd214.pdf: boom");
+    const log = logged();
+
+    try {
+      const response = await run(upload([textFile("scan.pdf")]), config);
+
+      expect(response.status).toBe(503);
+      expect(log()).toContain("kind=ocr-unavailable-unknown");
+      expect(log()).not.toContain("Jane");
+    } finally {
+      await rm(bin, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("the robot check, in hosted mode", () => {
   it("refuses a request with no token and writes nothing", async () => {
     const asked = vi.spyOn(globalThis, "fetch");

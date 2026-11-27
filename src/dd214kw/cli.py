@@ -1,4 +1,5 @@
-"""Command-line interface: dd214kw build-index | translate | lookup | inspect-layout."""
+"""Command-line interface: dd214kw build-index | translate | lookup | inspect-layout |
+check-ocr."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from rich.console import Console
 
 from . import __version__
 from .evidence import Document, Fact, ServiceContext
-from .extract import ExtractionError
+from .extract import ExtractionError, OcrToolError
 from .extractors import read
 from .index import DEFAULT_INDEX, Index, build_index, download
 from .render import print_rich, to_ats, to_json, to_markdown
@@ -109,6 +110,13 @@ def _cmd_inspect(a: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_check_ocr(a: argparse.Namespace) -> int:
+    from .ocr_check import check
+
+    print(check())
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="dd214kw", description=__doc__)
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -154,12 +162,25 @@ def main(argv: list[str] | None = None) -> int:
     ins.add_argument("--png", type=Path, help="Also draw the geometry as a picture here")
     ins.set_defaults(func=_cmd_inspect)
 
+    ocr = sub.add_parser(
+        "check-ocr",
+        help="Render and read a blank test page, to prove the OCR tools can run here",
+    )
+    ocr.set_defaults(func=_cmd_check_ocr)
+
     a = p.parse_args(argv)
     try:
         return a.func(a)
     except FileNotFoundError as e:
         err.print(f"[red]{e}[/]")
         return 1
+    except OcrToolError as e:
+        # One line, machine-readable, and the error's class and nothing else: the hosted
+        # route logs this against a request id, and a log line may hold no file name and
+        # no word of anybody's document. Its own exit code, because this is a fault here
+        # and not a document anybody should be told to scan again.
+        err.print(f"ocr-unavailable: {e.kind}")
+        return 3
 
 
 if __name__ == "__main__":

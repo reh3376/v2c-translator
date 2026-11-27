@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run the built image the way production will and check that it works.
 #
-#   deploy/smoke.sh ghcr.io/reh3376/v2c-translator:abc123 [--scan path/to/scan.pdf]
+#   deploy/smoke.sh ghcr.io/reh3376/v2c-translator:abc123 \
+#       [--scan path/to/scan.pdf] [--block12 path/to/scanner-pdf.pdf]
 #
 # What it asserts, in order:
 #
@@ -11,8 +12,17 @@
 #   4. the page carries the hosted privacy copy and not the local claim
 #   5. a translation with no Turnstile token is refused
 #   6. a translation with Cloudflare's always-pass test token succeeds
-#   7. the logs hold no file name, no document text and no address
-#   8. peak memory during an OCR translation, which is what sizes mem_limit
+#   7. a scan whose text layer garbled block 12 comes back with block 12 whole
+#   8. the logs hold no file name, no document text and no address
+#   9. peak memory during an OCR translation, and block 12 whole off an image-only scan
+#
+# Steps 7 and 9 are the ones that read a page rather than a text file, and the reason they
+# run here rather than in the Python tests: both OCR tools write a temporary file before
+# they do any work, and this container's root filesystem is read-only, with one writable
+# path. On a developer's machine that path has a writable /tmp and passes whatever the
+# deploy does. They cover the two ways a scan is read, which fail separately: `--block12`
+# has a text layer and every block 12 value has to be cut out of the page image and read
+# again; `--scan` has no text layer, so the whole page goes through OCR.
 #
 # Cloudflare publishes the test keys this uses, documented at
 # developers.cloudflare.com/turnstile/troubleshooting/testing/: site key
@@ -20,12 +30,14 @@
 # always validates. They are public values, not credentials.
 set -euo pipefail
 
-IMAGE="${1:?usage: smoke.sh IMAGE [--scan SCAN.pdf]}"
+IMAGE="${1:?usage: smoke.sh IMAGE [--scan SCAN.pdf] [--block12 SCANNER.pdf]}"
 shift
 SCAN=""
+BLOCK12=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --scan) SCAN="${2:?--scan needs a path}"; shift 2 ;;
+        --block12) BLOCK12="${2:?--block12 needs a path}"; shift 2 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -47,6 +59,29 @@ step() { printf '\n== %s\n' "$*"; }
 
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
+
+# Whether a report read the whole of block 12: the record of service, which is where a
+# veteran's dates and service lengths are and the one block the reader has to piece
+# together from a grid. Read out of the report rather than grepped for, because "block 12"
+# is also how the report cites where a value came from, and what matters here is whether
+# it says it could not read one.
+block12_whole() {
+    python3 - "$1" <<'PY'
+import json, sys
+
+answer = json.load(open(sys.argv[1]))
+report = answer["report"]
+notes = dict.fromkeys([*report["warnings"], *(n for d in report["documents"] for n in d["notes"])])
+complained = [n for n in notes if "block 12" in n.lower()]
+served = report["profile"]["service_time"]
+missing = [k for k in ("net_active", "foreign", "sea", "prior_active") if k not in served]
+for line in complained:
+    print(f"  note: {line}")
+if missing:
+    print(f"  service_time holds {sorted(served)}, missing {missing}")
+sys.exit(1 if complained or missing else 0)
+PY
+}
 
 wait_for() {
     local url="$1" tries=60
@@ -116,9 +151,13 @@ docker run -d --name "$NAME" \
 wait_for "http://127.0.0.1:${PORT}${BASE}/api/healthz" || fail "never became healthy"
 curl -fsS "http://127.0.0.1:${PORT}${BASE}/api/healthz" | grep -q '"mode":"hosted"' \
     || fail "healthz did not report hosted mode"
-curl -fsS "http://127.0.0.1:${PORT}${BASE}/api/readyz" | grep -q '"ok":true' \
-    || fail "readyz says the CLI or the index is missing"
-echo "ok: healthy, ready, on a read-only root filesystem"
+ready=$(curl -fsS "http://127.0.0.1:${PORT}${BASE}/api/readyz")
+grep -q '"ok":true' <<<"$ready" \
+    || fail "readyz says this container cannot translate: $ready"
+# The OCR check renders a page and reads it in the container's own temp directory. On a
+# read-only root filesystem that is the whole of whether a scan can be read at all.
+grep -q '"ocr":true' <<<"$ready" || fail "readyz says the OCR tools cannot run: $ready"
+echo "ok: healthy, ready, OCR tools proven, on a read-only root filesystem"
 
 step "4. the page says what a hosted deploy can honestly say"
 page=$(curl -fsS "http://127.0.0.1:${PORT}${BASE}")
@@ -150,7 +189,19 @@ grep -q '"ok":true' /tmp/v2c-report.json || fail "the report does not say ok"
 grep -q '11B' /tmp/v2c-report.json || fail "the report does not name the sample's specialty"
 echo "ok: translated, and the report names 11B"
 
-step "7. a failed translation leaves nothing about the document in the log"
+step "7. block 12 reads whole from a scan whose own text layer garbled it"
+if [ -n "$BLOCK12" ] && [ -f "$BLOCK12" ]; then
+    code=$(curl -s -o /tmp/v2c-block12.json -w '%{http_code}' --max-time 120 \
+        -F "files=@${BLOCK12}" -F "turnstileToken=${DUMMY_TOKEN}" \
+        "http://127.0.0.1:${PORT}${BASE}/api/translate")
+    [ "$code" = "200" ] || fail "expected 200, got $code: $(head -c 400 /tmp/v2c-block12.json)"
+    block12_whole /tmp/v2c-block12.json || fail "block 12 did not come back whole"
+    echo "ok: every value in block 12 was re-read from the page image"
+else
+    echo "note: no --block12 given, so nothing exercised the re-read path"
+fi
+
+step "8. a failed translation leaves nothing about the document in the log"
 code=$(curl -s -o /tmp/v2c-out.json -w '%{http_code}' \
     -F "files=@/tmp/v2c-leak.txt;filename=${LEAK_NAME}" \
     -F "turnstileToken=${DUMMY_TOKEN}" \
@@ -164,14 +215,23 @@ done
 grep -q "v2c hosted mode" <<<"$logs" || fail "the log is missing the one line boot is allowed"
 echo "ok: the log holds the boot line and nothing about anybody's documents"
 
-step "8. peak memory"
+step "9. peak memory"
 peak=$(docker exec "$NAME" sh -c 'cat /sys/fs/cgroup/memory.peak 2>/dev/null || cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes 2>/dev/null || echo 0')
 if [ -n "$SCAN" ] && [ -f "$SCAN" ]; then
     echo "translating a scanned PDF through OCR: $SCAN"
     code=$(curl -s -o /tmp/v2c-scan.json -w '%{http_code}' --max-time 120 \
         -F "files=@${SCAN}" -F "turnstileToken=${DUMMY_TOKEN}" \
         "http://127.0.0.1:${PORT}${BASE}/api/translate")
-    [ "$code" = "200" ] || echo "note: the scan came back $code: $(head -c 300 /tmp/v2c-scan.json)"
+    # A timeout on a slow machine is a note, not a failure: this step is here for the
+    # number. A report that came back, though, has to have read block 12, because this
+    # file is the other way a scan is read — no text layer at all, so the whole page goes
+    # through OCR, and block 12's grid is what that mode loses first.
+    if [ "$code" = "200" ]; then
+        block12_whole /tmp/v2c-scan.json || fail "the image-only scan lost part of block 12"
+        echo "ok: block 12 read whole from a scan with no text layer"
+    else
+        echo "note: the scan came back $code: $(head -c 300 /tmp/v2c-scan.json)"
+    fi
     peak=$(docker exec "$NAME" sh -c 'cat /sys/fs/cgroup/memory.peak 2>/dev/null || cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes 2>/dev/null || echo 0')
 else
     echo "note: no --scan given, so this peak covers the text translations only"
