@@ -167,12 +167,13 @@ uv run dd214kw translate tests/fixtures/army_2000.txt tests/fixtures/army_vmet.t
 
 | Option | Default | Description |
 |---|---|---|
-| `-f, --format {rich,md,json,ats}` | `rich` | Output format (see [Output formats](#output-formats)) |
+| `-f, --format {rich,md,json,ats,json+md}` | `rich` | Output format (see [Output formats](#output-formats)) |
 | `-o, --output PATH` | stdout | Write to a file instead (`rich` becomes Markdown) |
 | `--top N` | `12` | Keywords per category |
 | `--limit N` | `40` | Number of terms in the ATS string |
 | `--explain` | off | Show each keyword's score and sources (`rich` format) |
 | `--ocr` | off | OCR a PDF that has no text layer (needs the `ocr` extra) |
+| `--max-pages N` | no limit | Refuse a document longer than N pages, counted before any page is read |
 | `--json-input` | auto for `.json` | Read every FILE as text, with no OCR |
 | `--branch NAME` | detected | Override branch: `Army`, `Navy`, `Air Force`, `Space Force`, `Marine Corps`, `Coast Guard` |
 
@@ -329,6 +330,21 @@ Full structured output for downstream systems (resume builders, job matching, an
 }
 ```
 
+### `json+md`
+
+Both of the above in one envelope, from one reading of the documents:
+
+```jsonc
+{
+  "report":   { /* exactly what `-f json` prints */ },
+  "markdown": "# Civilian Workforce Keywords\n\n- Branch: Navy\n…"
+}
+```
+
+This exists for a caller that wants both, such as the web app's `/api/translate`: a
+scanned page is then OCR'd once instead of once per format, which halves the memory and
+the time one upload costs. See [Sizing](docs/deploy.md#sizing).
+
 **Keyword categories**
 
 | Key | Source | Contents |
@@ -411,8 +427,9 @@ would replace that one export. Each engine parses its output into a `Report`, th
 schema in [`web/src/engine/report.ts`](web/src/engine/report.ts) for
 `KeywordReport.to_dict()`, so the page never sees raw JSON.
 
-**Markdown.** The route runs the CLI twice in parallel, with `-f json` and with `-f md`.
-`render.py` stays the only Markdown renderer.
+**Markdown.** The route runs the CLI once, with `-f json+md`, which prints both formats
+from one reading of the documents as `{"report": …, "markdown": …}`. `render.py` stays the
+only Markdown renderer.
 
 **Pictures.** One per branch, under [`web/public/branches/`](web/public/branches) and listed in
 [`web/src/content/branches.ts`](web/src/content/branches.ts) against the names `detect_branch`

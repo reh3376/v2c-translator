@@ -6,6 +6,7 @@ blocks can be read by position instead of by line order.
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -14,6 +15,16 @@ from pathlib import Path
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 TESSERACT_CONFIG = "--psm 4"
+
+# One OCR thread per process, unless the caller asked for more.
+#
+# Tesseract's OpenMP parallelism spends more time spin-waiting than reading. Measured in
+# the container on a 2-core box with `deploy/measure.sh`, a 5-page 300 dpi scan takes 19 s
+# of wall time and 17 s of CPU with one thread, and 39-58 s of wall time and 38-68 s of
+# CPU with two, for the same words out: the second thread costs time and buys nothing. A
+# server that runs two translations at once wants that core for the other visitor anyway,
+# and `docs/deploy.md` sizes it that way.
+OCR_THREADS = "1"
 
 
 class ExtractionError(RuntimeError):
@@ -58,7 +69,26 @@ class Content:
     scan: ScanPages | None = None
 
 
-def load_text(path: Path, *, ocr: bool = False) -> Content:
+def page_count(path: Path) -> int:
+    """How many pages a file holds, from a PDF's page tree. Nothing is rendered or read.
+
+    Anything that is not a PDF is one page: an image is one, and a text file has none
+    worth counting.
+    """
+    if path.suffix.lower() != ".pdf":
+        return 1
+    from pypdf import PdfReader
+
+    return len(PdfReader(path).pages)
+
+
+def load_text(path: Path, *, ocr: bool = False, max_pages: int | None = None) -> Content:
+    if max_pages is not None:
+        pages = page_count(path)
+        if pages > max_pages:
+            # Before OCR, which is what the limit is for: rendering and reading a page is
+            # the expensive part, and counting pages is not.
+            raise ExtractionError(f"too many pages: {pages} (limit {max_pages})")
     suffix = path.suffix.lower()
     if suffix in {".txt", ".text", ".md"}:
         return Content(path.read_text(encoding="utf-8", errors="replace"))
@@ -206,6 +236,7 @@ def _open_image(path: Path):
 
 def _ocr_images(images) -> Content:
     """OCR each page once: its words with their boxes, in tesseract's lines and line order."""
+    os.environ.setdefault("OMP_THREAD_LIMIT", OCR_THREADS)  # see OCR_THREADS
     try:
         import pytesseract
     except ImportError as e:  # pragma: no cover

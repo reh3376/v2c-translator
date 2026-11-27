@@ -45,10 +45,23 @@ def _summary(r: KeywordReport) -> list[str]:
     ]
 
 
-def to_json(r: KeywordReport) -> str:
+def _report(r: KeywordReport) -> dict:
     d = r.to_dict()
     d["attribution"] = ATTRIBUTION
-    return json.dumps(d, indent=2, default=str)  # dates as ISO strings
+    return d
+
+
+def to_json(r: KeywordReport) -> str:
+    return json.dumps(_report(r), indent=2, default=str)  # dates as ISO strings
+
+
+def to_bundle(r: KeywordReport) -> str:
+    """The JSON report and the same report as Markdown, in one envelope.
+
+    One `translate` run, both formats, so a scanned page is OCR'd once rather than once
+    per format. `{"report": <what -f json prints>, "markdown": <what -f md prints>}`.
+    """
+    return json.dumps({"report": _report(r), "markdown": to_markdown(r)}, indent=2, default=str)
 
 
 def to_ats(r: KeywordReport, limit: int = 40) -> str:

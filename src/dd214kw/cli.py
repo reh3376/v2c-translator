@@ -14,11 +14,19 @@ from .evidence import Document, Fact, ServiceContext
 from .extract import ExtractionError
 from .extractors import read
 from .index import DEFAULT_INDEX, Index, build_index, download
-from .render import print_rich, to_ats, to_json, to_markdown
+from .render import print_rich, to_ats, to_bundle, to_json, to_markdown
 from .resolve import resolve
 from .translate import ALL_PRIMARY, BRANCH_SVCS, translate
 
 err = Console(stderr=True)
+
+
+def _pages(raw: str) -> int:
+    """`--max-pages`, which has to be a page count. Zero would refuse every document."""
+    value = int(raw)
+    if value < 1:
+        raise argparse.ArgumentTypeError("a page limit is at least 1; leave it out for no limit")
+    return value
 
 
 def _cmd_build(a: argparse.Namespace) -> int:
@@ -36,7 +44,7 @@ def _cmd_translate(a: argparse.Namespace) -> int:
     facts: list[Fact] = []
     for path in a.files:
         try:
-            doc, doc_facts = read(path, ocr=a.ocr, json_input=a.json_input)
+            doc, doc_facts = read(path, ocr=a.ocr, json_input=a.json_input, max_pages=a.max_pages)
         except ExtractionError as e:
             err.print(f"[red]{path}: {e}[/]")
             return 2
@@ -53,6 +61,8 @@ def _cmd_translate(a: argparse.Namespace) -> int:
             out = to_json(report)
         case "md":
             out = to_markdown(report)
+        case "json+md":
+            out = to_bundle(report)
         case "ats":
             out = to_ats(report, a.limit)
         case _:
@@ -129,12 +139,25 @@ def main(argv: list[str] | None = None) -> int:
         help="One person's DD-214s (.pdf, .txt, image, or pre-extracted .json), DD-215s (.json) "
         "and VMET (.pdf, .txt)",
     )
-    t.add_argument("-f", "--format", choices=["rich", "md", "json", "ats"], default="rich")
+    t.add_argument(
+        "-f",
+        "--format",
+        choices=["rich", "md", "json", "ats", "json+md"],
+        default="rich",
+        help="json+md prints both in one envelope, from one reading of the documents",
+    )
     t.add_argument("-o", "--output", type=Path)
     t.add_argument("--top", type=int, default=12, help="Keywords per category")
     t.add_argument("--limit", type=int, default=40, help="ATS keyword count")
     t.add_argument("--explain", action="store_true", help="Show scores and sources")
     t.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (needs 'ocr' extra)")
+    t.add_argument(
+        "--max-pages",
+        type=_pages,
+        metavar="N",
+        help="Refuse a document longer than N pages, counted before any page is read. "
+        "No limit by default",
+    )
     t.add_argument("--json-input", action="store_true", help="Treat FILE as pre-extracted JSON")
     t.add_argument("--branch", choices=sorted(BRANCH_SVCS), help="Override detected branch")
     t.set_defaults(func=_cmd_translate)

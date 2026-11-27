@@ -31,14 +31,17 @@ def detect(text: str) -> Extractor:
     return best
 
 
-def read(path: Path, *, ocr: bool = False, json_input: bool = False) -> tuple[Document, list[Fact]]:
+def read(
+    path: Path, *, ocr: bool = False, json_input: bool = False, max_pages: int | None = None
+) -> tuple[Document, list[Fact]]:
     """Read one file into the document it is and the facts it states.
 
     `.json` files (or any file, with `json_input`) are read as text and not OCR'd.
-    Either way, `detect()` picks the extractor.
+    Either way, `detect()` picks the extractor. `max_pages` refuses a longer document
+    before any of it is read; see `extract.load_text`.
     """
     if json_input or path.suffix.lower() == ".json":
         content = Content(path.read_text())
     else:
-        content = load_text(path, ocr=ocr)
+        content = load_text(path, ocr=ocr, max_pages=max_pages)
     return detect(content.text).extract(content, SourceFactory.for_bytes(path.read_bytes()))
