@@ -18,9 +18,15 @@ from reportlab.pdfgen.canvas import Canvas
 
 from dd214kw.cli import main
 from dd214kw.evidence import SourceFactory
-from dd214kw.extract import Content, load_text
+from dd214kw.extract import Content, OcrToolError, load_text
 from dd214kw.extractors import Dd214, read
-from dd214kw.extractors.dd214_layout import NOT_READ, OCR_TOOLS_MISSING, Status, read_form
+from dd214kw.extractors.dd214_layout import (
+    NOT_READ,
+    OCR_TOOLS_FAILED,
+    OCR_TOOLS_MISSING,
+    Status,
+    read_form,
+)
 from dd214kw.index import DEFAULT_INDEX
 from dd214kw.models import Duration
 from dd214kw.resolve import resolve
@@ -276,6 +282,48 @@ def test_a_cell_the_ocr_tools_cannot_re_read_says_what_would_read_it(scan_text_p
     assert [n for n in doc.notes if n == OCR_TOOLS_MISSING] == [OCR_TOOLS_MISSING]
 
 
+@needs_tesseract
+@needs_ocr_extra
+def test_a_cell_nothing_could_re_read_is_not_called_unreadable(scan_text_pdf, monkeypatch):
+    """The hosted container's root filesystem is read-only, so the OCR tools can be
+    installed and still have nowhere to write the temporary file they work through. A cell
+    nothing ever read is not a cell that could not be read: saying it was sends a veteran
+    back to their scanner over a fault on this machine. One note, naming the error's class
+    and nothing else."""
+    import pytesseract
+
+    def no_temp_directory(*args, **kwargs):
+        raise PermissionError(30, "Read-only file system")
+
+    monkeypatch.setattr(pytesseract, "image_to_string", no_temp_directory)
+    doc, facts = read(scan_text_pdf)
+
+    assert "net_active" not in resolve(facts).service_time
+    assert [n for n in doc.notes if "could not be read" in n] == []
+    assert [n for n in doc.notes if n.startswith("The OCR tools on this machine")] == [
+        OCR_TOOLS_FAILED.format(kind="PermissionError")
+    ]
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_a_scan_the_ocr_tools_could_not_run_on_is_not_a_bad_document(image_pdf, monkeypatch):
+    """A page with no text layer is nothing but OCR, so there is no report to put a note
+    on: the CLI says `ocr-unavailable: <class>` and exits 3, which the hosted route turns
+    into "this server could not read a scanned page" and not "your file is unreadable"."""
+    import pytesseract
+
+    def no_temp_directory(*args, **kwargs):
+        raise PermissionError(30, "Read-only file system")
+
+    monkeypatch.setattr(pytesseract, "image_to_data", no_temp_directory)
+    with pytest.raises(OcrToolError) as raised:
+        read(image_pdf, ocr=True)
+    assert raised.value.kind == "PermissionError"
+
+    assert main(["translate", str(image_pdf), "--ocr", "-f", "json"]) == 3
+
+
 def test_a_net_active_service_the_dates_contradict_is_noted_not_corrected(tmp_path):
     """Block 12c is the time between 12a and 12b, counted inclusively. Time lost (block 29)
     is withheld, so a figure that does not follow from the dates is reported, not changed."""
@@ -472,3 +520,41 @@ def test_scan_without_text_layer_is_read_by_position_with_ocr(image_pdf):
         assert profile.service_time["foreign"] == FOREIGN
     else:
         assert any("12f" in n for n in doc.notes)
+
+
+@needs_tesseract
+@needs_ocr_extra
+def test_block_12_reads_whole_from_a_300_dpi_scan_with_no_text_layer(pdfs, clean_pdf):
+    """The reported failure in the hosted deploy: most of block 12 came back as values
+    that "could not be read", and one row as a row where no value was found.
+
+    A page with no text layer is read by OCR alone, and a DD-214 is not one column of
+    text: blocks 11 and 12 sit side by side and block 12 is a grid. In tesseract's
+    one-column mode the words of two of its rows come back in one box, two rows tall, so a
+    value is placed in the wrong row or in none, and the crop a cell is re-read from spans
+    two rows and reads as nothing. In sparse-text mode each cell is boxed on its own.
+
+    At 300 dpi, which is what an office scanner and a phone's scan app both produce. The
+    test above draws its scan at 200 dpi, where one-column mode happened to survive.
+    """
+    png = form.rasterize(clean_pdf, pdfs / "scan-300.png", dpi=300)
+    pdf = form.write_image_pdf(png, pdfs / "image-300.pdf", dpi=300)
+
+    doc, facts = read(pdf, ocr=True)
+    profile = resolve(facts)
+
+    assert profile.service_time["net_active"] == NET_ACTIVE
+    assert profile.service_time["foreign"] == FOREIGN
+    assert profile.context.as_of == date(2020, 10, 3)  # block 12b
+    assert [n for n in doc.notes if "block 12" in n] == []
+    # Sparse-text mode reads one typed line of a wide block in pieces, each a line of its
+    # own and not in the page's order, so block 14's entries come out of `_rejoin` or not
+    # at all: "ADVANCED" and "LEADER COURSE, FOLLOWS" were two courses before it.
+    assert _occupations(profile) == SPECIALTIES
+    assert [
+        (t.value.title, t.value.weeks, t.value.completed.year) for t in profile.training
+    ] == COURSES
+    assert [(a.value.name, a.value.count) for a in profile.awards] == AWARDS
+    ocr = load_text(pdf, ocr=True)
+    cells = read_form(ocr.words, ocr.lines, ocr.scan).layout.cells
+    assert {c.status for c in cells} == {Status.READ}

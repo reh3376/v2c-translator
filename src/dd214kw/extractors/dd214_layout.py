@@ -28,7 +28,7 @@ from itertools import accumulate, combinations, pairwise
 from rapidfuzz import fuzz
 from rapidfuzz.distance import Indel
 
-from ..extract import ExtractionError, Scan, ScanPages, Word
+from ..extract import ExtractionError, OcrToolError, Scan, ScanPages, Word
 from ..parse import MAX_SERVICE_YEARS, detect_version
 
 # Fuzzy-match floor (0-100) for a printed label against a line of OCR'd text.
@@ -252,6 +252,13 @@ REREAD_TRIES = (
 OCR_TOOLS_MISSING = (
     "Some block 12 values were unreadable in the PDF's text layer; installing the OCR tools "
     "(see README) lets them be re-read from the scan."
+)
+# The OCR tools are installed and could not run: the error's class, and nothing else. A
+# cell that was never re-read is not a cell that could not be read, and saying it was would
+# send a veteran back to their scanner over a fault on this machine.
+OCR_TOOLS_FAILED = (
+    "The OCR tools on this machine could not read the page ({kind}), so block 12 values its "
+    "text layer had garbled were left out. That is a fault here, not in the document."
 )
 RULE_RE = re.compile(r"[|\[\]_!\u2013\u2014]+")  # a ruled line read as text
 SPLIT_SEPARATOR_RE = re.compile(r"/\s+/")  # OCR's "/ /" for the "//" between entries
@@ -481,10 +488,12 @@ def _write(edition: Edition, layout: Layout, lines: Sequence[tuple[Word, ...]]) 
             continue
         if regions[block].status is not Status.READ:
             continue
-        in_box = _drop_label(
-            _grouped(lines, regions[block].words),
-            block + _printed(edition, block),
-            regions[block].label_height,
+        in_box = _rejoin(
+            _drop_label(
+                _grouped(lines, regions[block].words),
+                block + _printed(edition, block),
+                regions[block].label_height,
+            )
         )
         text = [_text(line) for line in in_box]
         # With "//" between entries, a line break in the box is only a wrap. The "//" may
@@ -568,10 +577,46 @@ def _head(label: str) -> str:
 
 
 def _grouped(lines: Sequence[tuple[Word, ...]], words: Iterable[Word]) -> list[tuple[Word, ...]]:
-    """`words` cut into the lines their source read them in, top to bottom."""
+    """`words` cut into the lines their source read them in, down the page and then across
+    it: the lines that sit on one line of the page come out left to right.
+
+    A source does not always give a line of a wide block whole. Tesseract reads a page of
+    boxed fields in sparse-text mode, where one typed line of block 13 or 14 comes back as
+    two or three pieces, each a line of its own and not in the page's order. Sorted by
+    height alone they interleave by a point or two of OCR noise, and an entry's weeks and
+    year land in front of its title.
+    """
     keep = {id(w) for w in words}
-    out = [line for line in (tuple(w for w in ln if id(w) in keep) for ln in lines) if line]
-    return sorted(out, key=lambda line: min(_cy(w) for w in line))
+    out = sorted(
+        (line for line in (tuple(w for w in ln if id(w) in keep) for ln in lines) if line),
+        key=_centre,
+    )
+    rows = [0]
+    for before, line in pairwise(out):
+        apart = _centre(line) - _centre(before) > 0.5 * _text_height(line)
+        rows.append(rows[-1] + 1 if apart else rows[-1])
+    return [line for _, line in sorted(zip(rows, out, strict=True), key=_down_then_across)]
+
+
+def _down_then_across(row_line: tuple[int, tuple[Word, ...]]) -> tuple[int, float]:
+    row, line = row_line
+    return row, min(w.x0 for w in line)
+
+
+def _rejoin(lines: Sequence[tuple[Word, ...]]) -> list[tuple[Word, ...]]:
+    """The lines that sit on one line of the page as one line, left to right.
+
+    Only after the printed label has been taken off: a label and the value typed on its
+    own line sit on one line of the page too, and telling those two apart is `_drop_label`'s
+    whole job. What is left is value, and a value the source cut into pieces is one line.
+    """
+    joined: list[tuple[Word, ...]] = []
+    for line in lines:
+        if joined and _centre(line) - _centre(joined[-1]) <= 0.5 * _text_height(line):
+            joined[-1] = tuple(sorted((*joined[-1], *line), key=lambda w: w.x0))
+        else:
+            joined.append(line)
+    return joined
 
 
 def _drop_label(
@@ -793,6 +838,7 @@ def _record(
     cells: list[Cell] = []
     notes: list[str] = []
     missing_tools = False
+    tool_error = ""  # the class of an OCR failure on this machine, once it has happened
     # How tall a line of this block's own typed text is, which is what a crop of one cell
     # has to hold whole, and more than the page's median, most of which is printed label.
     typed = [w for column in stacks.values() for cell in column for w in cell]
@@ -813,20 +859,32 @@ def _record(
         tall = {column: (x0, tall_top, x1, tall_bottom) for column, (x0, x1) in columns.items()}
         texts = [_cell(words[column]) for column in COLUMNS]
         zeros = None if row.is_date else _zeros(texts)
-        reads = zeros or [
-            _cell_digits(
-                text,
-                width,
-                (boxes[column], tall[column]),
-                page_scan,
-                year=row.is_date and column == COLUMNS[0],
-            )
-            for column, text, width in zip(COLUMNS, texts, CELL_DIGITS, strict=True)
+        years = [row.is_date and column == COLUMNS[0] for column in COLUMNS]
+        # The row as its text layer alone leaves it, for when there is no second reading.
+        plain = [
+            _Read(_of_width(text, width, year))
+            for text, width, year in zip(texts, CELL_DIGITS, years, strict=True)
         ]
+        if zeros or tool_error:
+            reads = zeros or plain
+        else:
+            try:
+                reads = [
+                    _cell_digits(text, width, (boxes[column], tall[column]), page_scan, year=year)
+                    for column, text, width, year in zip(
+                        COLUMNS, texts, CELL_DIGITS, years, strict=True
+                    )
+                ]
+            except OcrToolError as e:
+                # The page cannot be re-read at all, here or for any row after this one.
+                tool_error = e.kind
+                reads = plain
         missing_tools = missing_tools or any(read.missing_tools for read in reads)
         attempts = {c: read.reread for c, read in zip(COLUMNS, reads, strict=True)}
         if _row_value([read.digits for read in reads], row.is_date) is None:
-            notes.append(f"The value of {name} could not be read; not used.")
+            # Not "could not be read" when nothing read it: OCR_TOOLS_FAILED says so once.
+            if not tool_error:
+                notes.append(f"The value of {name} could not be read; not used.")
             cells += [
                 Cell(row.letter, c, Status.REFUSED, boxes[c], words[c], reread=attempts[c])
                 for c in COLUMNS
@@ -838,6 +896,8 @@ def _record(
         ]
     if missing_tools:
         notes.append(OCR_TOOLS_MISSING)
+    if tool_error:
+        notes.append(OCR_TOOLS_FAILED.format(kind=tool_error))
     return cells, notes + _record_check(edition, cells)
 
 
@@ -1118,9 +1178,12 @@ def _reread(scan: Scan, box: Box, how: Try) -> tuple[Box, str] | None:
         return crop, pytesseract.image_to_string(image, config=config).strip()
     except pytesseract.TesseractNotFoundError:  # pragma: no cover - optional dependency
         return None
-    except (OSError, RuntimeError):  # pragma: no cover - tesseract failed on this crop
-        # It read nothing here; the next try may still read the cell.
-        return crop, ""
+    except (OSError, pytesseract.TesseractError) as e:
+        # Not "this crop read as nothing", which is an empty string and a reason to try the
+        # next margin: pytesseract writes the crop to a temp file before it runs tesseract,
+        # so a read-only temp directory, a full one, or a tesseract that exits non-zero
+        # lands here, and no further try can read this cell or any other.
+        raise OcrToolError(e) from None
 
 
 def _without_rules(image):

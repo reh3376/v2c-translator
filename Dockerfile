@@ -139,11 +139,19 @@ COPY --chown=root:root deploy/entrypoint.sh /usr/local/bin/v2c
 # `read_only: true`. The only thing this process writes is a temp directory under
 # V2C_TMPDIR, which the compose file mounts as a tmpfs, so an uploaded document never
 # reaches a disk.
+# TMPDIR beside V2C_TMPDIR, and for the same reason. Both OCR tools write a temporary file
+# before they do any work: pdf2image hands a page to pdftoppm, pytesseract writes the image
+# out and runs tesseract on it. With a read-only root filesystem /tmp, /var/tmp and
+# /usr/tmp are all read-only, and Python's last resort is the working directory, so without
+# this any process here that is not sitting in the upload directory can read no scan at
+# all. In the image, so a `docker exec` has it too; `deploy/entrypoint.sh` follows
+# V2C_TMPDIR when a deploy moves it.
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3009 \
     V2C_BASE_PATH=${V2C_BASE_PATH} \
     V2C_TMPDIR=/tmp/v2c \
+    TMPDIR=/tmp/v2c \
     DD214KW_BIN=/opt/v2c/venv/bin/dd214kw \
     DD214KW_INDEX=/opt/v2c/index.sqlite
 

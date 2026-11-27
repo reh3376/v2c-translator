@@ -13,11 +13,35 @@ from functools import cache
 from pathlib import Path
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
-TESSERACT_CONFIG = "--psm 4"
+# Sparse text (11), not one column of variable-sized text (4). A DD-214 is not a column:
+# blocks 11 and 12 sit side by side and block 12 is a 9 x 3 grid of digits. In mode 4
+# tesseract boxes words across the grid's rows, two rows tall, and a value boxed over two
+# rows is placed in the wrong row or in none, and the crop a cell is re-read from spans two
+# rows and reads as nothing. Measured on the synthetic scan at 200, 250 and 300 dpi: mode
+# 11 read all nine rows of block 12 every time, mode 4 read three to eight of them and lost
+# net active service in most. Mode 11 is also the faster of the two here: 4.7 s against
+# 9.1 s for one 300 dpi page. Rerun it with
+# `uv run --extra ocr python tests/ocr_sweep.py --path scan --psm 4,11 --dpi 200,300`.
+TESSERACT_CONFIG = "--psm 11"
 
 
 class ExtractionError(RuntimeError):
     pass
+
+
+class OcrToolError(RuntimeError):
+    """The OCR tools are installed but could not run on this machine: no writable
+    temporary directory, no permission to write one, no space, no poppler, a tesseract
+    that exits non-zero. A fault of the server, not of the document, and so never a
+    reason to tell a reader that their file could not be read.
+
+    Only the error's class is carried, never its message, which can quote the path of the
+    file being read or of the temp directory it sits in.
+    """
+
+    def __init__(self, cause: BaseException) -> None:
+        self.kind = type(cause).__name__
+        super().__init__(self.kind)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,9 +129,16 @@ def render_scan(path: Path) -> list:
 
     try:
         from pdf2image import convert_from_path
+        from pdf2image.exceptions import PopplerNotInstalledError
     except ImportError as e:  # pragma: no cover - optional dependency
         raise ExtractionError("OCR needs the 'ocr' extra: uv sync --extra ocr") from e
-    return convert_from_path(str(path), dpi=_scan_dpi(PdfReader(path)))
+    try:
+        return convert_from_path(str(path), dpi=_scan_dpi(PdfReader(path)))
+    except (OSError, PopplerNotInstalledError) as e:
+        # No writable temporary directory, no permission, no space, no pdftoppm. The
+        # document is fine; this machine cannot render it. PDFPageCountError is left as it
+        # is, because a damaged PDF raises it too.
+        raise OcrToolError(e) from None
 
 
 def _scan_pages(path: Path, dpi: int) -> ScanPages:
@@ -214,9 +245,15 @@ def _ocr_images(images) -> Content:
     lines: list[tuple[Word, ...]] = []
     pages: list[str] = []
     for page_no, img in enumerate(images):
-        data = pytesseract.image_to_data(
-            img, config=TESSERACT_CONFIG, output_type=pytesseract.Output.DICT
-        )
+        try:
+            data = pytesseract.image_to_data(
+                img, config=TESSERACT_CONFIG, output_type=pytesseract.Output.DICT
+            )
+        except (OSError, pytesseract.TesseractError) as e:
+            # pytesseract writes the image to a temp file before it runs tesseract, so a
+            # read-only temp directory lands here, as does a tesseract that is missing or
+            # exits non-zero. None of that is the document's fault.
+            raise OcrToolError(e) from None
         page: dict[tuple[int, int, int], list[Word]] = {}
         for i, text in enumerate(data["text"]):
             if not text.strip():
