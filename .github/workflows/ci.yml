@@ -172,7 +172,7 @@ jobs:
         run: |
           deploy/smoke.sh "${{ steps.tags.outputs.sha_tag }}" \
             --scan "$RUNNER_TEMP/scan.pdf" \
-            --block12 "$RUNNER_TEMP/rescan.pdf" --block12 "$RUNNER_TEMP/page.pdf"
+            --block12 "$RUNNER_TEMP/rescan.pdf" --page "$RUNNER_TEMP/page.pdf"
         id: smoke
 
       - name: log in to ghcr

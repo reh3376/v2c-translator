@@ -2,7 +2,7 @@
 # Run the built image the way production will and check that it works.
 #
 #   deploy/smoke.sh ghcr.io/reh3376/v2c-translator:abc123 \
-#       [--scan path/to/scan.pdf] [--block12 path/to/a-scan.pdf]...
+#       [--scan path/to/scan.pdf] [--block12 path/to/a-scan.pdf]... [--page path/to/page.pdf]
 #
 # What it asserts, in order:
 #
@@ -13,16 +13,17 @@
 #   5. a translation with no Turnstile token is refused
 #   6. a translation with Cloudflare's always-pass test token succeeds
 #   7. every scan given to --block12 comes back with block 12 whole
+#  7b. so does --page, a page with no text layer, read from off the upload directory
 #   8. the logs hold no file name, no document text and no address
 #   9. peak memory during an OCR translation, and block 12 whole if it finished in time
 #
-# Step 7 is the one that reads a page rather than a text file, and the reason it runs here
-# rather than in the Python tests: both OCR tools write a temporary file before they do any
-# work, and this container's root filesystem is read-only, with one writable path. On a
+# Steps 7 and 7b read a page rather than a text file, and the reason they run here rather
+# than in the Python tests is the container: both OCR tools write a temporary file before
+# they do any work, and this root filesystem is read-only with one writable path. On a
 # developer's machine that path has a writable /tmp and passes whatever the deploy does.
-# Give it one scan of each kind, because they fail separately: one with a text layer,
-# where every block 12 value has to be cut out of the page image and read again, and one
-# with no text layer, where the whole page goes through OCR. CI draws both. Step 9's own
+# A scan is read two ways, and they fail separately, so there is a step for each: with a
+# text layer, where every block 12 value has to be cut out of the page image and read
+# again, and with none, where the whole page goes through OCR. CI draws both. Step 9's own
 # scan is for the memory number, and is allowed to time out on a slow machine.
 #
 # Cloudflare publishes the test keys this uses, documented at
@@ -34,11 +35,13 @@ set -euo pipefail
 IMAGE="${1:?usage: smoke.sh IMAGE [--scan SCAN.pdf] [--block12 SCANNER.pdf]}"
 shift
 SCAN=""
+PAGE=""
 BLOCK12=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --scan) SCAN="${2:?--scan needs a path}"; shift 2 ;;
         --block12) BLOCK12+=("${2:?--block12 needs a path}"); shift 2 ;;
+        --page) PAGE="${2:?--page needs a path}"; shift 2 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -71,7 +74,7 @@ block12_whole() {
 import json, sys
 
 answer = json.load(open(sys.argv[1]))
-report = answer["report"]
+report = answer.get("report", answer)  # the route's envelope, or the CLI's own report
 notes = dict.fromkeys([*report["warnings"], *(n for d in report["documents"] for n in d["notes"])])
 complained = [n for n in notes if "block 12" in n.lower()]
 served = report["profile"]["service_time"]
@@ -203,6 +206,28 @@ for scan in ${BLOCK12[@]+"${BLOCK12[@]}"}; do
     block12_whole /tmp/v2c-block12.json || fail "$scan: block 12 did not come back whole"
     echo "ok: $(basename "$scan")"
 done
+
+step "7b. and from a page with no text layer, run from outside the upload directory"
+# The CLI itself, not the route, for two reasons. A page with no text layer is OCR'd
+# whole, and a request runs the CLI twice in parallel for its two output formats, which on
+# a two-core runner is enough to reach the 60-second timeout and tell us nothing. And the
+# working directory is deliberately not the upload directory: it is the last place Python
+# looks for a temp directory, and for a while it was the only reason the OCR tools had one
+# at all. Run from `/`, this passes only because the entrypoint exports TMPDIR.
+if [ -n "$PAGE" ] && [ -f "$PAGE" ]; then
+    # Through a process, not `docker cp`, which a container with a read-only root
+    # filesystem refuses whatever the path.
+    docker exec -i "$NAME" sh -c 'cat > /tmp/v2c/page.pdf' < "$PAGE" \
+        || fail "could not put the page on the container's tmpfs"
+    docker exec -w / "$NAME" sh -c '"$DD214KW_BIN" translate /tmp/v2c/page.pdf --ocr -f json' \
+        > /tmp/v2c-page.json 2>/tmp/v2c-page.err \
+        || fail "the CLI could not read it: $(head -c 300 /tmp/v2c-page.err)"
+    block12_whole /tmp/v2c-page.json || fail "block 12 did not come back whole from the page"
+    docker exec "$NAME" rm -f /tmp/v2c/page.pdf >/dev/null 2>&1 || true
+    echo "ok: $(basename "$PAGE"), OCR'd whole, from a working directory off the tmpfs"
+else
+    echo "note: no --page given, so nothing read a page with no text layer"
+fi
 
 step "8. a failed translation leaves nothing about the document in the log"
 code=$(curl -s -o /tmp/v2c-out.json -w '%{http_code}' \

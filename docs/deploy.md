@@ -29,7 +29,8 @@ browser ──HTTPS──▶ Caddy ──┬── handle /api/*  ─▶ career-
                      ├── /opt/v2c/venv/bin/dd214kw   the CLI, run per request
                      ├── /opt/v2c/index.sqlite   O*NET + DMDC, built into the image
                      ├── tesseract, pdftoppm     for a scanned page
-                     └── /tmp/v2c                tmpfs; uploads live here for seconds
+                     └── /tmp/v2c                tmpfs; uploads and the OCR tools'
+                                                 own temp files, for seconds
 ```
 
 One container, not two. A translation is one request: the route writes the uploaded files
@@ -73,7 +74,8 @@ build. The image is built with `V2C_BASE_PATH=/v2c`; a build arg changes it.
 | `V2C_RATE_LIMIT` | 10 | Translations per window per visitor. Hosted only. |
 | `V2C_RATE_WINDOW_MINUTES` | 10 | The window. |
 | `V2C_MAX_BODY_MB` | 25 | The whole multipart request, hosted only. The per-file limit (10 MB) and the file count (10) do not change. |
-| `V2C_TMPDIR` | the system temp dir | Where uploads are written, and what the entrypoint exports as `TMPDIR`, so the OCR tools' own temp files go to the same tmpfs. Point it at a tmpfs. |
+| `V2C_TMPDIR` | the system temp dir | Where uploads are written. Point it at a tmpfs. |
+| `TMPDIR` | `/tmp/v2c` in the image | Where the OCR tools write their own temporary files, which they do before they read anything. On a read-only root filesystem this has to be the tmpfs: the image sets it, and the entrypoint follows `V2C_TMPDIR` when a deploy moves it. |
 | `V2C_HOST` | — | Overrides the bind address the mode would choose. |
 | `PORT` | 3009 | |
 | `DD214KW_BIN` | set in the image | The CLI executable. Unset on a developer's machine, where `uv run` is used instead. |
