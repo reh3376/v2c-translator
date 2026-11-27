@@ -17,10 +17,11 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 # blocks 11 and 12 sit side by side and block 12 is a 9 x 3 grid of digits. In mode 4
 # tesseract boxes words across the grid's rows, two rows tall, and a value boxed over two
 # rows is placed in the wrong row or in none, and the crop a cell is re-read from spans two
-# rows and reads as nothing. Measured on the synthetic scan with `_work/block12_sweep.py`
-# (see the PR), at 200, 250 and 300 dpi: mode 11 read all nine rows of block 12 every time,
-# mode 4 read three to eight of them and lost net active service in most. Mode 11 is also
-# the faster of the two here: 4.7 s against 9.1 s for one 300 dpi page.
+# rows and reads as nothing. Measured on the synthetic scan at 200, 250 and 300 dpi: mode
+# 11 read all nine rows of block 12 every time, mode 4 read three to eight of them and lost
+# net active service in most. Mode 11 is also the faster of the two here: 4.7 s against
+# 9.1 s for one 300 dpi page. Rerun it with
+# `uv run --extra ocr python tests/ocr_sweep.py --path scan --psm 4,11 --dpi 200,300`.
 TESSERACT_CONFIG = "--psm 11"
 
 
