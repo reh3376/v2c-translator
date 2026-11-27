@@ -2,7 +2,7 @@
 # Run the built image the way production will and check that it works.
 #
 #   deploy/smoke.sh ghcr.io/reh3376/v2c-translator:abc123 \
-#       [--scan path/to/scan.pdf] [--block12 path/to/scanner-pdf.pdf]
+#       [--scan path/to/scan.pdf] [--block12 path/to/a-scan.pdf]...
 #
 # What it asserts, in order:
 #
@@ -12,17 +12,18 @@
 #   4. the page carries the hosted privacy copy and not the local claim
 #   5. a translation with no Turnstile token is refused
 #   6. a translation with Cloudflare's always-pass test token succeeds
-#   7. a scan whose text layer garbled block 12 comes back with block 12 whole
+#   7. every scan given to --block12 comes back with block 12 whole
 #   8. the logs hold no file name, no document text and no address
-#   9. peak memory during an OCR translation, and block 12 whole off an image-only scan
+#   9. peak memory during an OCR translation, and block 12 whole if it finished in time
 #
-# Steps 7 and 9 are the ones that read a page rather than a text file, and the reason they
-# run here rather than in the Python tests: both OCR tools write a temporary file before
-# they do any work, and this container's root filesystem is read-only, with one writable
-# path. On a developer's machine that path has a writable /tmp and passes whatever the
-# deploy does. They cover the two ways a scan is read, which fail separately: `--block12`
-# has a text layer and every block 12 value has to be cut out of the page image and read
-# again; `--scan` has no text layer, so the whole page goes through OCR.
+# Step 7 is the one that reads a page rather than a text file, and the reason it runs here
+# rather than in the Python tests: both OCR tools write a temporary file before they do any
+# work, and this container's root filesystem is read-only, with one writable path. On a
+# developer's machine that path has a writable /tmp and passes whatever the deploy does.
+# Give it one scan of each kind, because they fail separately: one with a text layer,
+# where every block 12 value has to be cut out of the page image and read again, and one
+# with no text layer, where the whole page goes through OCR. CI draws both. Step 9's own
+# scan is for the memory number, and is allowed to time out on a slow machine.
 #
 # Cloudflare publishes the test keys this uses, documented at
 # developers.cloudflare.com/turnstile/troubleshooting/testing/: site key
@@ -33,11 +34,11 @@ set -euo pipefail
 IMAGE="${1:?usage: smoke.sh IMAGE [--scan SCAN.pdf] [--block12 SCANNER.pdf]}"
 shift
 SCAN=""
-BLOCK12=""
+BLOCK12=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --scan) SCAN="${2:?--scan needs a path}"; shift 2 ;;
-        --block12) BLOCK12="${2:?--block12 needs a path}"; shift 2 ;;
+        --block12) BLOCK12+=("${2:?--block12 needs a path}"); shift 2 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -189,17 +190,19 @@ grep -q '"ok":true' /tmp/v2c-report.json || fail "the report does not say ok"
 grep -q '11B' /tmp/v2c-report.json || fail "the report does not name the sample's specialty"
 echo "ok: translated, and the report names 11B"
 
-step "7. block 12 reads whole from a scan whose own text layer garbled it"
-if [ -n "$BLOCK12" ] && [ -f "$BLOCK12" ]; then
-    code=$(curl -s -o /tmp/v2c-block12.json -w '%{http_code}' --max-time 120 \
-        -F "files=@${BLOCK12}" -F "turnstileToken=${DUMMY_TOKEN}" \
-        "http://127.0.0.1:${PORT}${BASE}/api/translate")
-    [ "$code" = "200" ] || fail "expected 200, got $code: $(head -c 400 /tmp/v2c-block12.json)"
-    block12_whole /tmp/v2c-block12.json || fail "block 12 did not come back whole"
-    echo "ok: every value in block 12 was re-read from the page image"
-else
-    echo "note: no --block12 given, so nothing exercised the re-read path"
+step "7. block 12 reads whole from every scan given"
+if [ "${#BLOCK12[@]}" -eq 0 ]; then
+    echo "note: no --block12 given, so nothing here read a page"
 fi
+for scan in ${BLOCK12[@]+"${BLOCK12[@]}"}; do
+    [ -f "$scan" ] || fail "no such file: $scan"
+    code=$(curl -s -o /tmp/v2c-block12.json -w '%{http_code}' --max-time 120 \
+        -F "files=@${scan}" -F "turnstileToken=${DUMMY_TOKEN}" \
+        "http://127.0.0.1:${PORT}${BASE}/api/translate")
+    [ "$code" = "200" ] || fail "$scan: expected 200, got $code: $(head -c 400 /tmp/v2c-block12.json)"
+    block12_whole /tmp/v2c-block12.json || fail "$scan: block 12 did not come back whole"
+    echo "ok: $(basename "$scan")"
+done
 
 step "8. a failed translation leaves nothing about the document in the log"
 code=$(curl -s -o /tmp/v2c-out.json -w '%{http_code}' \

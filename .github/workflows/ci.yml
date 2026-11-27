@@ -151,12 +151,12 @@ jobs:
           cache-from: type=gha,scope=image
           cache-to: type=gha,mode=max,scope=image
 
-      # Pages drive the container's memory, not file size, so the smoke test wants a
-      # multi-page scan. The second scan is a plain office scanner's own PDF, whose
-      # reading of block 12 is garbled, so the smoke test can prove every value in that
-      # block is still re-read from the page image inside the read-only container. That is
-      # the path the hosted deploy got wrong. Both are drawn here; no PDF or image is
-      # committed to this repository.
+      # Three scans, drawn here because no PDF or image is committed to this repository.
+      # The five-page one is for the memory number: pages drive the container's memory, not
+      # file size. The other two are the two ways a scan is read, which break separately
+      # and both broke in the hosted deploy: a plain office scanner's own PDF, whose
+      # reading of block 12 is garbled so every value in it has to be re-read from the page
+      # image, and one page with no text layer at all, where the whole page is OCR'd.
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - name: draw the scans the smoke test reads
         run: |
@@ -166,11 +166,13 @@ jobs:
           uv run --extra ocr python tests/make_scan.py --out "$RUNNER_TEMP/scan.pdf" --pages 5
           uv run --extra ocr python tests/make_scan.py --out "$RUNNER_TEMP/rescan.pdf" \
             --kind text-layer --dpi 150
+          uv run --extra ocr python tests/make_scan.py --out "$RUNNER_TEMP/page.pdf" --kind image
 
       - name: smoke-test the image
         run: |
           deploy/smoke.sh "${{ steps.tags.outputs.sha_tag }}" \
-            --scan "$RUNNER_TEMP/scan.pdf" --block12 "$RUNNER_TEMP/rescan.pdf"
+            --scan "$RUNNER_TEMP/scan.pdf" \
+            --block12 "$RUNNER_TEMP/rescan.pdf" --block12 "$RUNNER_TEMP/page.pdf"
         id: smoke
 
       - name: log in to ghcr
